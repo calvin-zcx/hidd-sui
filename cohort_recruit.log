@@ -1,0 +1,29 @@
+C:\Users\zang\Anaconda3\envs\hidd-sui\python.exe "C:\Users\csu\PyCharm Community Edition 2021.1.3\plugins\python-ce\helpers\pydev\pydevconsole.py" --mode=client --port=59621
+import sys; print('Python %s on %s' % (sys.version, sys.platform))
+sys.path.extend(['C:\\Users\\zang\\PycharmProjects\\hidd-sui', 'C:/Users/zang/PycharmProjects/hidd-sui'])
+PyDev console: starting.
+Python 3.8.10 (default, May 19 2021, 13:12:57) [MSC v.1916 64 bit (AMD64)] on win32
+runfile('C:/Users/zang/PycharmProjects/hidd-sui/main.py', wdir='C:/Users/zang/PycharmProjects/hidd-sui')
+Total:
+ (5145529, 72)
+Among 2321801: 1345264 (57.94%) one records, 976537 (42.06%) one more records
+Remove claims not in 2012-01-01 -- 2017-09-30:
+Among 1218146: 768340 (63.07%) one records, 449806 (36.93%) one more records
+Keep commercial claims only
+Among 487286: 368270 (75.58%) one records, 119016 (24.42%) one more records
+Keep age 10-24 years old
+Among 40702: 32347 (79.47%) one records, 8355 (20.53%) one more records
+len(patient_1st_sui):  1408
+C:/Users/zang/PycharmProjects/hidd-sui/main.py:79: SettingWithCopyWarning:
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  df_1st_sui['n_rows'] = df_1st_sui['myuid'].apply(lambda x : len(patient_records[x]))
+Among 1408: 837 (59.45%) one records, 571 (40.55%) one more records
+C:/Users/zang/PycharmProjects/hidd-sui/main.py:85: SettingWithCopyWarning:
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  df_1st_neg['n_rows'] = df_1st_neg['myuid'].apply(lambda x: len(patient_records[x]))
+Among 39294: 31510 (80.19%) one records, 7784 (19.81%) one more records
+Time used: 00:01:56
