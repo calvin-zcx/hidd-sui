@@ -13,92 +13,134 @@ import numpy as np
 import functools
 
 print = functools.partial(print, flush=True)
+from dataset import *
+import random
+from model import MLModels
+from sklearn.metrics import precision_recall_fscore_support, precision_score, recall_score, roc_auc_score, confusion_matrix
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+def parse_args():
+    parser = argparse.ArgumentParser(description='process parameters')
+    # Input
+    parser.add_argument("--random_seed", type=int, default=0)
+    parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST', 'LIGHTGBM'], default='LR')
+    args = parser.parse_args()
+
+    # Modifying args
+    args.cuda = torch.cuda.is_available()
+    args.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    if args.random_seed >= 0:
+        rseed = args.random_seed
+    else:
+        from datetime import datetime
+        rseed = datetime.now()
+    args.random_seed = rseed
+
+    return args
 
 
-def print_1_vs_more(df):
-    p_nrecords = df['myuid'].value_counts()
-    p_1 = [x for x, n in p_nrecords.items() if n == 1]
-    p_1more = [x for x, n in p_nrecords.items() if n > 1]
-    print('Among {}: {} ({:.2f}%) one records, {} ({:.2f}%) one more records'.format(p_nrecords.shape[0],
-                                                                                     len(p_1),
-                                                                                     len(p_1) / p_nrecords.shape[
-                                                                                         0] * 100.0,
-                                                                                     len(p_1more),
-                                                                                     len(p_1more) / p_nrecords.shape[
-                                                                                         0] * 100.0))
+# flaten series into static
+# train_x, train_t, train_y = flatten_data(my_dataset, train_indices)  # (1764,713), (1764,), (1764,)
+def flatten_data(mdata, data_indices, verbose=1):
+    x, y = [], []
+    for idx in data_indices:
+        confounder, outcome = mdata[idx][0], mdata[idx][1]
+        dx, sex, age = confounder[0], confounder[1], confounder[2]
+        dx = np.sum(dx, axis=0)
+        dx = np.where(dx > 0, 1, 0)
+
+        x.append(np.concatenate((dx, [sex], age)))
+        y.append(outcome)
+
+    x, y = np.asarray(x), np.asarray(y)
+    if verbose:
+        d1 = len(dx)
+        print('...dx:', x[:, :d1].shape, 'non-zero ratio:', (x[:, :d1] != 0).mean(), 'all-zero:',
+              (x[:, :d1].mean(0) == 0).sum())
+        print('...all:', x.shape, 'non-zero ratio:', (x != 0).mean(), 'all-zero:', (x.mean(0) == 0).sum())
+    return x, y[:,0], y[:,1]
 
 
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    # print_hi('PyCharm')
     start_time = time.time()
-    df = pd.read_csv('data/hidd_0517_ct_sa.csv', dtype=str, parse_dates=['dob', 'adat', "ddat", "fiscalyear"])
-    df['age'] = df['age'].astype(int)
-    df['sa_ALL_ind'] = df['sa_ALL_ind'].astype(int)
-    print('Total:\n', df.shape)
-    print_1_vs_more(df)
+    args = parse_args()
 
-    print('Remove claims not in 2012-01-01 -- 2017-09-30:')
-    df_exclude = df.loc[(df['fiscalyear'] >= pd.to_datetime('2012-01-01')) & (
-                df['fiscalyear'] <= pd.to_datetime('2017-09-30')), :]
-    print_1_vs_more(df_exclude)
+    np.random.seed(args.random_seed)
+    torch.manual_seed(args.random_seed)
+    random.seed(args.random_seed)
 
-    print('Keep commercial claims only')
-    df_exclude = df_exclude.loc[df_exclude["ppayercode"].str.contains("G|F|S|T", regex=True), :]
-    print_1_vs_more(df_exclude)
+    print('args: ', args)
+    print('random_seed: ', args.random_seed)
 
-    print('Keep age 10-24 years old')
-    df_exclude = df_exclude.loc[(df_exclude["age"] >= 10) & (df_exclude["age"] <= 24), :]
-    print_1_vs_more(df_exclude)
+    with open(r'pickles/final_pats_1st_neg_triples.pkl', 'rb') as f:
+        data_1st_neg = pickle.load(f)
+        print('len(data_1st_neg):', len(data_1st_neg))
 
-    df_exclude = df_exclude.sort_values(by=['myuid', 'ddat'])
+    with open(r'pickles/final_pats_1st_sui_triples.pkl', 'rb') as f:
+        data_1st_sui = pickle.load(f)
+        print('len(data_1st_sui):', len(data_1st_sui))
 
-    df_exclude.to_csv('data/final_pats.csv')
-    pickle.dump(df_exclude, open('data/final_pats.pkl', 'wb'))
+    with open(r'pickles/ccs2name.pkl', 'rb') as f:
+        dx_name = pickle.load(f)
+        print('len(dx_name):', len(dx_name))
 
-    patient_records = defaultdict(list)
-    for index, row in df_exclude.iterrows():
-        myuid = row['myuid']
-        flag = row['sa_ALL_ind']
-        date = row['ddat']
-        patient_records[myuid].append((date, flag))
+    my_dataset = Dataset(data_1st_neg, diag_name=dx_name)
+    my_dataset_aux = Dataset(data_1st_sui, diag_name=dx_name, diag_code_vocab=my_dataset.diag_code_vocab)
 
-    patient_1st_sui = set([])
-    for key, val in patient_records.items():
-        if val[0][1] == 1:
-            patient_1st_sui.add(key)
+    n_feature = my_dataset.DIM_OF_CONFOUNDERS  # my_dataset.med_vocab_length + my_dataset.diag_vocab_length + 3
+    feature_name = my_dataset.FEATURE_NAME
+    print('n_feature: ', n_feature, ':')
+    # print(feature_name)
 
-    print('len(patient_1st_sui): ', len(patient_1st_sui))
+    train_ratio = 0.9  # 0.5
+    val_ratio = 0.1
+    print('train_ratio: ', train_ratio,
+          'val_ratio: ', val_ratio)
 
-    df_1st_sui = df_exclude.loc[df_exclude['myuid'].isin(patient_1st_sui), :]
-    df_1st_sui['n_rows'] = df_1st_sui['myuid'].apply(lambda x : len(patient_records[x]))
-    print_1_vs_more(df_1st_sui)
-    df_1st_sui.to_csv('data/final_pats_1st_sui.csv')
-    pickle.dump(df_1st_sui, open('data/final_pats_1st_sui.pkl', 'wb'))
+    dataset_size = len(my_dataset)
+    indices = list(range(dataset_size))
+    train_index = int(np.floor(train_ratio * dataset_size))
+    np.random.shuffle(indices)
 
-    df_1st_neg = df_exclude.loc[~df_exclude['myuid'].isin(patient_1st_sui), :]
-    df_1st_neg['n_rows'] = df_1st_neg['myuid'].apply(lambda x: len(patient_records[x]))
-    print_1_vs_more(df_1st_neg)
-    df_1st_neg.to_csv('data/final_pats_1st_neg.csv')
-    pickle.dump(df_1st_neg, open('data/final_pats_1st_neg.pkl', 'wb'))
+    train_indices, val_indices = indices[:train_index], indices[train_index:]
+    print('Train data:')
+    train_x, train_y, train_t2e = flatten_data(my_dataset, train_indices)
+    print('Validation data:')
+    val_x, val_y, val_t2e = flatten_data(my_dataset, val_indices)
 
-    print('Time used:', time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
-    #Counter({1: 837, 2: 403, 3: 82, 4: 38, 5: 24, 6: 13, 7: 3, 8: 2, 9: 2, 12: 2, 11: 1, 10: 1})
-    # age_stats = df_exclude.loc[(df_exclude['fiscalyear'] >= pd.to_datetime('2014-01-01')) &
-    #                            (df_exclude['fiscalyear'] <= pd.to_datetime('2015-12-31')), :].groupby('myuid').agg(
-    #     {'age': ['min', 'max']})
-    # idx = df_exclude['age'].isna()
-    # for index, row in df_exclude.iterrows():
-    #     myuid = row['myuid']
-    #     if myuid in age_stats.index:
-    #         age = age_stats.loc[myuid, ('age', 'min')]
-    #         if (age >= 10) and (age <= 24):
-    #             idx[index] = True
+    ###
+    print('Auc data size: ', len(my_dataset_aux))
+    aux_indices = list(range(len(my_dataset_aux)))
+    aux_x, aux_y, aux_t2e = flatten_data(my_dataset_aux, aux_indices)
     #
-    # df_exclude = df_exclude.loc[idx, :]
-    # print_1_vs_more(df_exclude)
+    paras_grid = {
+        'penalty': ['l2'],  # ['l1', 'l2'],
+        'C': 10 ** np.arange(-2, 2, 0.2),  # 'C': [0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 20],
+        'max_iter': [150],  # [100, 200, 500],
+        'random_state': [args.random_seed],
+        "class_weight": [None]  # ["balanced", None]
+    }
+
+    #
+
+    model = MLModels(args.run_model, paras_grid).fit(train_x, train_y, val_x, val_y)
+
+    # sample_weight = np.concatenate((np.ones_like(train_y), 2*np.ones_like(aux_y)))
+    model_aux = MLModels(args.run_model, paras_grid).fit(
+        np.concatenate((train_x, aux_x)),
+        np.concatenate((train_y, aux_y)), val_x, val_y)
+
+    print('...Original data results: ')
+    print('......Results at specificity 0.9:')
+    result_1 = model.performance_at_specificity(val_x, val_y, specificity=0.9)
+    print('......Results at specificity 0.95:')
+    result_2 = model.performance_at_specificity(val_x, val_y, specificity=0.95)
+    print('Done! Total Time used:', time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
+
+    print('...Using aux data results: ')
+    print('......Results at specificity 0.9:')
+    result_aux_1 = model_aux.performance_at_specificity(val_x, val_y, specificity=0.9)
+    print('......Results at specificity 0.95:')
+    result_aux_2 = model_aux.performance_at_specificity(val_x, val_y, specificity=0.95)
+
