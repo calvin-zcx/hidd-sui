@@ -15,6 +15,7 @@ class Dataset(torch.utils.data.Dataset):
         self.sexes = []
         self.ages = []
         self.outcome = []
+        self.uid = []
 
         for uid, patient_confounder, patient_outcome in tqdm(self.patient_list):
             self.outcome.append(patient_outcome)
@@ -22,6 +23,7 @@ class Dataset(torch.utils.data.Dataset):
             self.diagnoses_visits.append(diag_visit)
             self.sexes.append(sex)
             self.ages.append(age)
+            self.uid.append(uid)
 
         if diag_code_vocab is None:
             self.diag_code_vocab = CodeVocab(diag_code_threshold, diag_code_topk, diag_name)
@@ -88,7 +90,9 @@ class Dataset(torch.utils.data.Dataset):
         outcome = self.outcome[index]
         confounder = (diag, sex, age)
 
-        return confounder, outcome
+        uid = self.uid[index]
+
+        return confounder, outcome, uid
 
     def __len__(self):
         return len(self.diagnoses_visits)
