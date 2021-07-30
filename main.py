@@ -11,6 +11,7 @@ import argparse
 import csv
 import numpy as np
 import functools
+import os
 
 print = functools.partial(print, flush=True)
 from dataset import *
@@ -145,7 +146,7 @@ if __name__ == '__main__':
             'max_depth': [3, 4, 5],
             'learning_rate': np.arange(0.01, 1, 0.1),
             'num_leaves': np.arange(5, 50, 10),
-            'min_child_samples': [50, 100, 150, 200, 250, 300],
+            'min_child_samples': [50, 100, 150, 200, 250],
             'random_state': [args.random_seed],
         }
     #
@@ -159,16 +160,16 @@ if __name__ == '__main__':
 
     print('...Original data results: ')
     print('......Results at specificity 0.9:')
-    result_1 = model.performance_at_specificity(test_x, test_y, specificity=0.9)
+    result_1 = model.performance_at_specificity_or_threshold(test_x, test_y, specificity=0.9)
     print('......Results at specificity 0.95:')
-    result_2 = model.performance_at_specificity(test_x, test_y, specificity=0.95)
+    result_2 = model.performance_at_specificity_or_threshold(test_x, test_y, specificity=0.95)
     print('Done! Total Time used:', time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
 
     print('...Using aux data results: ')
     print('......Results at specificity 0.9:')
-    result_aux_1 = model_aux.performance_at_specificity(test_x, test_y, specificity=0.9)
+    result_aux_1 = model_aux.performance_at_specificity_or_threshold(test_x, test_y, specificity=0.9)
     print('......Results at specificity 0.95:')
-    result_aux_2 = model_aux.performance_at_specificity(test_x, test_y, specificity=0.95)
+    result_aux_2 = model_aux.performance_at_specificity_or_threshold(test_x, test_y, specificity=0.95)
 
     df1 = pd.DataFrame([result_1 + (model.best_hyper_paras,), result_2 + (model.best_hyper_paras,),
                         result_aux_1 + (model_aux.best_hyper_paras,), result_aux_2 + (model_aux.best_hyper_paras,)],
@@ -194,14 +195,29 @@ if __name__ == '__main__':
     test_y_pre = (test_y_pre_prob > threshold).astype(int)
     r = precision_recall_fscore_support(test_y, test_y_pre)
     print('precision_recall_fscore_support:\n', r)
-    feat = [';'.join(feature_name[np.nonzero(test_x[i,:])[0]]) for i in range(len(test_x))]
-    pd.DataFrame({'test_uid': test_uid, 'test_y_pre_prob': test_y_pre_prob, 'test_y_pre': test_y_pre, 'test_y': test_y, 'feat':feat}).to_csv(
-        'output/test_pre_details_{}r{}.csv'.format(args.run_model, args.random_seed))
+    feat = [';'.join(feature_name[np.nonzero(test_x[i, :])[0]]) for i in range(len(test_x))]
+    pd.DataFrame({'test_uid': test_uid, 'test_y_pre_prob': test_y_pre_prob, 'test_y_pre': test_y_pre, 'test_y': test_y,
+                  'feat': feat}).to_csv('output/test_pre_details_{}r{}.csv'.format(args.run_model, args.random_seed))
 
+    with open(r'pickles/final_pats_1st_neg_dict.pkl', 'rb') as f:
+        datadict = pickle.load(f)
+        if os.path.exists('pickles/icd_des.pkl'):
+            with open(r'pickles/icd_des.pkl', 'rb') as f2:
+                icd_des = pickle.load(f2)
+        else:
+            icd = pd.read_excel('data/CMS32_DESC_LONG_SHORT_DX.xlsx ')
+            icd_des = {r[0]: r[2] for i, r in icd.iterrows()}
+            pickle.dump(icd_des, open('pickles/icd_des.pkl', 'wb'))
+        print('len(data_1st_neg):', len(datadict))
+        print('len(icd_des):', len(icd_des))
 
-    # with open(r'pickles/final_pats_1st_neg_dict.pkl', 'rb') as f:
-    #     datadict = pickle.load(f)
-    #     print('len(data_1st_neg):', len(datadict))
+    uid = '937504'
+    arecord = datadict.get(uid)
+    a_details = []
+    for a in arecord:
+        a_details.append(a[:4] + [x + '_' + icd_des.get(x, '') for x in a[4:]])
+    for a in a_details:
+        print(a)
 
     # pickle.dump((model, model_aux), open('pickles/models.pkl', 'wb'))
     # perplexity = 50  # 35 # 25 #50 # 25 # 50

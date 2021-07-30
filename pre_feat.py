@@ -16,13 +16,20 @@ from tqdm import tqdm
 print = functools.partial(print, flush=True)
 
 
-def load_icd9_2_ccs():
+def parse_args():
+    parser = argparse.ArgumentParser(description='process parameters')
+    parser.add_argument('--encode', choices=['ccssingle', 'ccsmultiple'], default='ccssingle')
+    args = parser.parse_args()
+    return args
+
+
+def load_icd9_2_ccssingle():
     """
      https://www.hcup-us.ahrq.gov/toolssoftware/ccs/ccs.jsp
      Single Level CCS (ZIP file, 201 KB).
     :return:
     """
-    df_name = pd.read_csv(r'data/ccs_dxlabel2015.csv', dtype=str)
+    df_name = pd.read_csv(r'data/ccs_single/ccs_dxlabel2015.csv', dtype=str)
     ccs2name = {}
     for index, row in tqdm(df_name.iterrows(), total=len(df_name)):
         ccs = row[0]
@@ -32,7 +39,7 @@ def load_icd9_2_ccs():
     print('len(ccs2name): ', len(ccs2name))
     pickle.dump(ccs2name, open('pickles/ccs2name.pkl', 'wb'))
 
-    df = pd.read_csv(r'data/ccs_dxref2015.csv', header=0)
+    df = pd.read_csv(r'data/ccs_single/ccs_dxref2015.csv', header=0)
     icd2ccs = {}
     ccs2icd = defaultdict(set)
     for index, row in tqdm(df.iterrows(), total=len(df)):
@@ -46,6 +53,53 @@ def load_icd9_2_ccs():
     print('len(icd2ccs): ', len(icd2ccs))
     print('len(ccs2icd): ', len(ccs2icd))
     pickle.dump(icd2ccs, open('pickles/icd2ccs.pkl', 'wb'))
+
+    return icd2ccs, ccs2icd, ccs2name
+
+
+def load_icd9_2_ccsmultiple():
+    """
+     https://www.hcup-us.ahrq.gov/toolssoftware/ccs/ccs.jsp
+     Multi-Level CCS (ZIP file, 104 KB).
+    :return:
+    """
+    df_name = pd.read_csv(r'data/ccs_multi/dxmlabel-13.csv', dtype=str)
+    ccs2name = {}
+    for index, row in tqdm(df_name.iterrows(), total=len(df_name)):
+        ccs = row[0].strip(' \'\"\t\n')
+        name = row[1].strip(' \'\"\t\n')
+        ccs2name[ccs] = name
+
+    print('len(ccs2name): ', len(ccs2name))
+    pickle.dump(ccs2name, open('pickles/ccsmulti2name.pkl', 'wb'))
+
+    df = pd.read_csv(r'data/ccs_multi/ccs_multi_dx_tool_2015.csv', header=0)
+    icd2ccs = {}
+    ccs2icd = defaultdict(set)
+    for index, row in tqdm(df.iterrows(), total=len(df)):
+        icd = row[0].strip(' \'\"\t\n')
+        ccsl3 = row[5].strip(' \'\"\t\n')
+        ccsl3_des = row[6].strip(' \'\"\t\n')
+        ccsl2 = row[3].strip(' \'\"\t\n')
+        ccsl2_des = row[4].strip(' \'\"\t\n')
+        ccsl1 = row[1].strip(' \'\"\t\n')
+        ccsl1_des = row[2].strip(' \'\"\t\n')
+        if ccsl3:
+            ccs = ccsl3
+            ccs_des = ccsl3_des
+        elif ccsl2:
+            ccs = ccsl2
+            ccs_des = ccsl2_des
+        else:
+            ccs = ccsl1
+            ccs_des = ccsl1_des
+
+        icd2ccs[icd] = (ccs, ccs_des)
+        ccs2icd[ccs].add(icd)
+
+    print('len(icd2ccs): ', len(icd2ccs))
+    print('len(ccs2icd): ', len(ccs2icd))
+    pickle.dump(icd2ccs, open('pickles/icd2ccsmulti.pkl', 'wb'))
 
     return icd2ccs, ccs2icd, ccs2name
 
@@ -228,7 +282,15 @@ def pre_dict_to_triples_1st_sui_type2(uid_records, enfunc):
 
 
 if __name__ == '__main__':
-    icd2ccs, ccs2icd, ccs2name = load_icd9_2_ccs()
+    args = parse_args()
+    if args.encode == 'ccssingle':
+        print('Encoding: ccs single')
+        icd2ccs, ccs2icd, ccs2name = load_icd9_2_ccssingle()
+    elif args.encode == 'ccsmultiple':
+        print('Encoding: ccs multiple')
+        icd2ccs, ccs2icd, ccs2name = load_icd9_2_ccsmultiple()
+    else:
+        raise ValueError
 
     def enfunc(x):
         a = icd2ccs.get(x, [])

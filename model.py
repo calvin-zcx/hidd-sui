@@ -9,7 +9,8 @@ from sklearn import svm, tree
 from sklearn.ensemble import AdaBoostClassifier
 import numpy as np
 import itertools
-from sklearn.metrics import precision_recall_fscore_support, precision_score, recall_score, roc_auc_score, confusion_matrix
+from sklearn.metrics import precision_recall_fscore_support, precision_score, recall_score, roc_auc_score, \
+    confusion_matrix
 import time
 from sklearn.metrics import log_loss
 from tqdm import tqdm
@@ -102,31 +103,31 @@ class MLModels:
         T_pre = self.predict_proba(X)
         return log_loss(T, T_pre)
 
-    def performance_at_specificity(self, x, y, specificity=0.9, tolerance=1e-4, maxiter=100, verbose=1):
-        threshold = 0.5
-        left = 1e-6
-        right = 1.
+    def performance_at_specificity_or_threshold(self, x, y, specificity=0.95, threshold=None, tolerance=1e-4, maxiter=100, verbose=1):
         y_pre_prob = self.predict_proba(x)
+
+        if threshold is None:
+            threshold = 0.5
+            left = 1e-6
+            right = 1.
+            i = 0
+            while (left < right) and (i <= maxiter):
+                i += 1
+                y_pre = (y_pre_prob > threshold).astype(int)
+                tn, fp, fn, tp = confusion_matrix(y, y_pre).ravel()
+                spec = tn / (tn + fp)  # recall of the negative class
+                if np.abs(spec - specificity) < tolerance:
+                    break
+
+                if spec > specificity:
+                    right = threshold
+                elif spec < specificity:
+                    left = threshold
+
+                threshold = (left + right) / 2.0
+
         auc = roc_auc_score(y, y_pre_prob)
-
-        i = 0
-        while (left < right) and (i <= maxiter):
-            i += 1
-            y_pre = (y_pre_prob > threshold).astype(int)
-            tn, fp, fn, tp = confusion_matrix(y, y_pre).ravel()
-            spec = tn / (tn + fp)  # recall of the negative class
-            if np.abs(spec - specificity) < tolerance:
-                break
-
-            if spec > specificity:
-                right = threshold
-            elif spec < specificity:
-                left = threshold
-
-            threshold = (left + right) / 2.0
-
         y_pre = (y_pre_prob > threshold).astype(int)
-
         tn, fp, fn, tp = confusion_matrix(y, y_pre).ravel()
         specificity = tn / (tn + fp)  # recall of the negative class
         precision = tp / (tp + fp)
@@ -139,5 +140,3 @@ class MLModels:
             # print('precision_recall_fscore_support:\n', r)
 
         return auc, threshold, specificity, recall, precision, r[3][0], r[3][1], r
-
-
