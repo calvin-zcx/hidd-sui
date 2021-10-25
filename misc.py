@@ -39,24 +39,29 @@ def shell_for_ml():
 #     print('In total ', n, ' commands')
 
 
-def results_summary():
+def results_summary(model='LR'):
     r9 = []
     r95 = []
     raux_9 = []
     raux_95 = []
     for seed in range(0, 20):
-        df = pd.read_csv('output/test_results_{}.csv'.format(seed))
+        df = pd.read_csv('output/test_results_{}r{}.csv'.format(model, seed))
         r9.append(df.loc[0, :].tolist())
         r95.append(df.loc[1, :].tolist())
-        raux_9.append(df.loc[2, :].tolist())
-        raux_95.append(df.loc[3, :].tolist())
+        try:
+            raux_9.append(df.loc[2, :].tolist())
+            raux_95.append(df.loc[3, :].tolist())
+        except:
+            print('No raux_9/95')
 
-    writer = pd.ExcelWriter('results_summary.xlsx', engine='xlsxwriter')
+    writer = pd.ExcelWriter('results_summary_{}.xlsx'.format(model), engine='xlsxwriter')
     pd.DataFrame(r9, columns=df.columns).describe().to_excel(writer, sheet_name='r9')
     pd.DataFrame(r95, columns=df.columns).describe().to_excel(writer, sheet_name='r95')
-    pd.DataFrame(raux_9, columns=df.columns).describe().to_excel(writer, sheet_name='raux_9')
-    pd.DataFrame(raux_95, columns=df.columns).describe().to_excel(writer, sheet_name='raux_95')
-
+    try:
+        pd.DataFrame(raux_9, columns=df.columns).describe().to_excel(writer, sheet_name='raux_9')
+        pd.DataFrame(raux_95, columns=df.columns).describe().to_excel(writer, sheet_name='raux_95')
+    except:
+        print('No raux_9/95')
 # Close the Pandas Excel writer and output the Excel file.
     writer.save()
 
@@ -64,5 +69,5 @@ def results_summary():
 if __name__ == '__main__':
     # shell_for_ml()
     # results_model_selection_for_ml(cohort_dir_name='save_cohort_all_loose', model='LR')
-    results_summary()
+    results_summary('MLP')
     print('Done')

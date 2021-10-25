@@ -96,3 +96,9 @@ class Dataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.diagnoses_visits)
+
+    def _to_tensor(self):
+        # 2021/10/25
+        # for static, pandas dataframe-like learning
+        # refer to flatten_data function
+        pass

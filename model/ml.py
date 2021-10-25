@@ -103,8 +103,8 @@ class MLModels:
         T_pre = self.predict_proba(X)
         return log_loss(T, T_pre)
 
-    def performance_at_specificity_or_threshold(self, x, y, specificity=0.95, threshold=None, tolerance=1e-4, maxiter=100, verbose=1):
-        y_pre_prob = self.predict_proba(x)
+    @staticmethod
+    def _performance_at_specificity_or_threshold(y_pre_prob, y, specificity=0.95, threshold=None, tolerance=1e-5, maxiter=100, verbose=1):
 
         if threshold is None:
             threshold = 0.5
@@ -140,3 +140,15 @@ class MLModels:
             # print('precision_recall_fscore_support:\n', r)
 
         return auc, threshold, specificity, recall, precision, r[3][0], r[3][1], r
+
+    def performance_at_specificity_or_threshold(self, x, y, specificity=0.95, threshold=None,
+                                                tolerance=1e-5, maxiter=100, verbose=1):
+        y_pre_prob = self.predict_proba(x)
+
+        return self._performance_at_specificity_or_threshold(y_pre_prob, y,
+                                                             specificity=specificity,
+                                                             threshold=threshold,
+                                                             tolerance=tolerance,
+                                                             maxiter=maxiter,
+                                                             verbose=verbose)
+

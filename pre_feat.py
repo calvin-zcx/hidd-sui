@@ -130,6 +130,8 @@ def pre_df_2_dict(df, outfile):
             if pd.isna(col) or (col == ''):
                 continue
             dxs = [x.strip() for x in col.split(',') if (x.strip() != '')]
+            # if len(dxs) > 1:
+            #     print(dxs)
             for x in dxs:
                 dx_on_visit.add(x)
 
@@ -181,15 +183,15 @@ def pre_dict_to_triples_1st_neg(uid_records, enfunc, exclude1visit=False):
         else:
             triples.append([uid,
                             [dxs, age, sex],
-                            [0, 0]
+                            [0, (records[0][0] - records[-1][0]).days]
                             ])
 
     print('len(triples):', len(triples))
     print('n_1visit:', n_1visit)
     if exclude1visit:
-        pickle.dump(triples, open('pickles/final_pats_1st_neg_triples_exclude1visit.pkl', 'wb'))
+        pickle.dump(triples, open('pickles/final_pats_1st_neg_triples_exclude1visit_before20150930.pkl', 'wb'))
     else:
-        pickle.dump(triples, open('pickles/final_pats_1st_neg_triples.pkl', 'wb'))
+        pickle.dump(triples, open('pickles/final_pats_1st_neg_triples_before20150930.pkl', 'wb'))
     return triples
 
 
@@ -221,64 +223,64 @@ def pre_dict_to_triples_1st_sui(uid_records, enfunc):
                         ])
 
     print('len(triples):', len(triples))
-    pickle.dump(triples, open('pickles/final_pats_1st_sui_triples.pkl', 'wb'))
+    pickle.dump(triples, open('pickles/final_pats_1st_sui_triples_before20150930.pkl', 'wb'))
     return triples
 
-
-def pre_dict_to_triples_1st_sui_type2(uid_records, enfunc):
-    # use first 3 digits of ICD 9 or
-    # use ccs codes?
-    # compare their dimensions!
-    print('In pre_dict_to_triples_1st_sui_type2...')
-    print('len(uid_records):', len(uid_records))
-    triples = []
-    n_10star = 0
-    n_100 = 0
-    n_101 = 0
-    for uid, records in tqdm(uid_records.items()):
-        # records: [ddat, outcome, sex, age, codes * ]
-        dxs = []
-        i = -1
-        ddat = outcome = sex = age = None
-        i_first_0 = None
-        for rec in records:
-            i+=1
-            ddat, outcome, sex, age = rec[:4]
-            if not outcome:
-                i_first_0 = i
-                break
-        if i_first_0 is None:
-            continue
-        else:
-            n_10star += 1
-
-        i = -1
-        records = records[i_first_0:]
-        for rec in records:
-            i += 1
-            ddat, outcome, sex, age = rec[:4]
-            if outcome:
-                # the first records is not positive, thus i >= 1
-                break
-            encodes = set([enfunc(x) for x in rec[4:]])
-            dxs.append(list(encodes))
-
-        if outcome:
-            triples.append([uid,
-                            [dxs, records[i-1][3], sex],
-                            [1, (ddat - records[i-1][0]).days]
-                            ])
-            n_101 += 1
-        else:
-            triples.append([uid,
-                            [dxs, age, sex],
-                            [0, 0]
-                            ])
-            n_100 += 1
-    print('len(triples):', len(triples))
-    print('n_10star:', n_10star, 'n_101:', n_101, 'n_100', n_100)
-    pickle.dump(triples, open('pickles/final_pats_1st_sui_triples.pkl', 'wb'))
-    return triples
+#
+# def pre_dict_to_triples_1st_sui_type2(uid_records, enfunc):
+#     # use first 3 digits of ICD 9 or
+#     # use ccs codes?
+#     # compare their dimensions!
+#     print('In pre_dict_to_triples_1st_sui_type2...')
+#     print('len(uid_records):', len(uid_records))
+#     triples = []
+#     n_10star = 0
+#     n_100 = 0
+#     n_101 = 0
+#     for uid, records in tqdm(uid_records.items()):
+#         # records: [ddat, outcome, sex, age, codes * ]
+#         dxs = []
+#         i = -1
+#         ddat = outcome = sex = age = None
+#         i_first_0 = None
+#         for rec in records:
+#             i+=1
+#             ddat, outcome, sex, age = rec[:4]
+#             if not outcome:
+#                 i_first_0 = i
+#                 break
+#         if i_first_0 is None:
+#             continue
+#         else:
+#             n_10star += 1
+#
+#         i = -1
+#         records = records[i_first_0:]
+#         for rec in records:
+#             i += 1
+#             ddat, outcome, sex, age = rec[:4]
+#             if outcome:
+#                 # the first records is not positive, thus i >= 1
+#                 break
+#             encodes = set([enfunc(x) for x in rec[4:]])
+#             dxs.append(list(encodes))
+#
+#         if outcome:
+#             triples.append([uid,
+#                             [dxs, records[i-1][3], sex],
+#                             [1, (ddat - records[i-1][0]).days]
+#                             ])
+#             n_101 += 1
+#         else:
+#             triples.append([uid,
+#                             [dxs, age, sex],
+#                             [0, 0]
+#                             ])
+#             n_100 += 1
+#     print('len(triples):', len(triples))
+#     print('n_10star:', n_10star, 'n_101:', n_101, 'n_100', n_100)
+#     pickle.dump(triples, open('pickles/final_pats_1st_sui_triples.pkl', 'wb'))
+#     return triples
 
 
 if __name__ == '__main__':
@@ -299,15 +301,17 @@ if __name__ == '__main__':
         else:
             return '0_INVALID_NO_DX'
 
-    with open(r'data/final_pats_1st_neg.pkl', 'rb') as f:
+    with open(r'data/final_pats_1st_neg_before20150930.pkl', 'rb') as f:
         df_1st_neg = pickle.load(f)
-        data_1st_neg = pre_df_2_dict(df_1st_neg, 'pickles/final_pats_1st_neg_dict.pkl')
+        data_1st_neg = pre_df_2_dict(df_1st_neg, 'pickles/final_pats_1st_neg_dict_before20150930.pkl')
         print(len(data_1st_neg))
-        data_1st_neg_triples = pre_dict_to_triples_1st_neg(data_1st_neg, enfunc, exclude1visit=True)
+        # , exclude1visit=True  only use patients >= 2 records
+        # =false, then original as wanwan, however, 1 visit are negative
+        data_1st_neg_triples = pre_dict_to_triples_1st_neg(data_1st_neg, enfunc)  #, exclude1visit=True)
 
-    with open(r'data/final_pats_1st_sui.pkl', 'rb') as f:
+    with open(r'data/final_pats_1st_sui_before20150930.pkl', 'rb') as f:
         df_1st_sui = pickle.load(f)
-        data_1st_sui = pre_df_2_dict(df_1st_sui, 'pickles/final_pats_1st_sui_dict.pkl')
+        data_1st_sui = pre_df_2_dict(df_1st_sui, 'pickles/final_pats_1st_sui_dict_before20150930.pkl')
         print(len(data_1st_sui))
         data_1st_sui_triples = pre_dict_to_triples_1st_sui(data_1st_sui, enfunc)
         # data_1st_sui_triples = pre_dict_to_triples_1st_sui_type2(data_1st_sui, enfunc)
@@ -316,6 +320,6 @@ if __name__ == '__main__':
     for k, v in data_1st_neg.items():
         a.append(len(v))
     n_of_visits = pd.DataFrame(a).value_counts()
-    n_of_visits.to_csv('debug/no_of_visits_per_person_1st_neg.csv')
+    n_of_visits.to_csv('debug/no_of_visits_per_person_1st_neg_before20150930.csv')
 
     print('Done')

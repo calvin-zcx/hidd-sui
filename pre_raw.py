@@ -99,6 +99,62 @@ def exclude():
     # print_1_vs_more(df_exclude)
 
 
+def exclude_with_recruit_window():
+    # add 2021-10-21
+    # input file r'data/final_pats.pkl'
+    # Shape(57975, 72), among 40702 pats: 32347 (79.47%) one records, 8355 (20.53%) one more records
+    # Include patients with first records < 2015-09-30
+    with open(r'data/final_pats.pkl', 'rb') as f:
+        df_exclude = pickle.load(f)
+        print_1_vs_more(df_exclude)
+
+    patient_records = defaultdict(list)
+    for index, row in df_exclude.iterrows():
+        myuid = row['myuid']
+        flag = row['sa_ALL_ind']
+        date = row['ddat']
+        patient_records[myuid].append((date, flag))
+
+
+    patient_1st_sui = set([])
+    patient_1st_NOTsui = set([])
+    patient_1st_after2015930= set([])
+    _patient_1st_pos= set([])
+
+    for key, val in patient_records.items():
+        if val[0][0] <= pd.to_datetime('2015-09-30'):
+            if val[0][1] == 1:
+                patient_1st_sui.add(key)
+            else:
+                patient_1st_NOTsui.add(key)
+                for r in val:
+                    if r[1] == 1:
+                        _patient_1st_pos.add(key)
+        else:
+            patient_1st_after2015930.add(key)
+
+    print('len(patient_1st_sui): ', len(patient_1st_sui))
+    print('len(patient_1st_NOTsui): ', len(patient_1st_NOTsui))
+    print('len(patient_1st_after2015930): ', len(patient_1st_after2015930))
+    print('len(_patient_1st_pos): ', len(_patient_1st_pos))
+
+    df_within_window = df_exclude.loc[~df_exclude['myuid'].isin(patient_1st_after2015930), :]
+    print_1_vs_more(df_within_window)
+
+    df_1st_sui = df_exclude.loc[df_exclude['myuid'].isin(patient_1st_sui), :]
+    df_1st_sui['n_rows'] = df_1st_sui['myuid'].apply(lambda x: len(patient_records[x]))
+    print_1_vs_more(df_1st_sui)
+    df_1st_sui.to_csv('data/final_pats_1st_sui_before20150930.csv')
+    pickle.dump(df_1st_sui, open('data/final_pats_1st_sui_before20150930.pkl', 'wb'))
+
+    df_1st_neg = df_exclude.loc[df_exclude['myuid'].isin(patient_1st_NOTsui), :]
+    df_1st_neg['n_rows'] = df_1st_neg['myuid'].apply(lambda x: len(patient_records[x]))
+    print_1_vs_more(df_1st_neg)
+    df_1st_neg.to_csv('data/final_pats_1st_neg_before20150930.csv')
+    pickle.dump(df_1st_neg, open('data/final_pats_1st_neg_before20150930.pkl', 'wb'))
+    print('Done')
+
+
 def load_pkl(dump=False):
     with open(r'data/final_pats.pkl', 'rb') as f:
         final_pats = pickle.load(f)
@@ -122,7 +178,9 @@ def load_pkl(dump=False):
 
 
 if __name__ == '__main__':
-    final_pats, final_pats_1st_sui, final_pats_1st_neg = load_pkl()
-    print_1_vs_more(final_pats)
-    print_1_vs_more(final_pats_1st_sui)
-    print_1_vs_more(final_pats_1st_neg)
+    exclude_with_recruit_window()
+    # final_pats, final_pats_1st_sui, final_pats_1st_neg = load_pkl()
+    # print_1_vs_more(final_pats)
+    # print_1_vs_more(final_pats_1st_sui)
+    # print_1_vs_more(final_pats_1st_neg)
+    print('Done')
