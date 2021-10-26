@@ -157,73 +157,115 @@ def pre_dict_to_triples_1st_neg(uid_records, enfunc, exclude1visit=False):
     print('len(uid_records):', len(uid_records))
     triples = []
     n_1visit = 0
+    n_pos = 0
+    n_neg = 0
     for uid, records in tqdm(uid_records.items()):
         # records: [ddat, outcome, sex, age, codes * ]
         dxs = []
-        i = -1
+
         ddat = outcome = sex = age = None
         if len(records) == 1:
             n_1visit += 1
             if exclude1visit:
                 continue
+        i = 0
         for rec in records:
             i += 1
             ddat, outcome, sex, age = rec[:4]
-            if outcome:
-                # the first records is not positive, thus i >= 1
-                break
+            # if outcome:
+            #     # the first records is not positive, thus i >= 1
+            #     break
             encodes = set([enfunc(x) for x in rec[4:]])
             dxs.append(list(encodes))
+            if outcome:
+                # the first records is not positive, thus i >= 1
+                # 2021-10-25 include last visit with suicide attempt 1
+                break
 
         if outcome:
+            # 2021-10-25
+            # last sequence is visit with sui attempt, not use last when prediction
+            # add two behaviour features: number of visit, and the time between first and last non-sui visits
+            # positive: 1, negative with two or more visits: 0, negative with 1 visit: -1
             triples.append([uid,
-                            [dxs, records[i-1][3], sex],
-                            [1, (ddat - records[i-1][0]).days]
+                            [dxs, records[-2][3], sex, len(dxs)-1, (records[-2][0] - records[0][0]).days],
+                            [1, (records[-1][0] - records[0][0]).days]
                             ])
+            n_pos += 1
         else:
             triples.append([uid,
-                            [dxs, age, sex],
-                            [0, (records[0][0] - records[-1][0]).days]
-                            ])
+                            [dxs, age, sex, len(dxs), (records[-1][0] - records[0][0]).days],
+                            [2 if len(dxs) == 1 else 0, (records[-1][0] - records[0][0]).days]
+                            ])  # use all for prediction
+            n_neg += 1
 
     print('len(triples):', len(triples))
-    print('n_1visit:', n_1visit)
+    print('n_1visit:', n_1visit, 'n_pos:', n_pos, 'n_neg:', n_neg)
     if exclude1visit:
-        pickle.dump(triples, open('pickles/final_pats_1st_neg_triples_exclude1visit_before20150930.pkl', 'wb'))
+        foname = 'pickles/final_pats_1st_neg_triples_exclude1visit_before20150930.pkl'
     else:
-        pickle.dump(triples, open('pickles/final_pats_1st_neg_triples_before20150930.pkl', 'wb'))
+        foname = 'pickles/final_pats_1st_neg_triples_before20150930.pkl'
+
+    pickle.dump(triples, open(foname, 'wb'))
+    print('Dump to {} done!'.format(foname))
+
     return triples
 
 
 def pre_dict_to_triples_1st_sui(uid_records, enfunc):
     # for patients with 1st records as suicide attempt:
-    # use all diagnosis codes, and the age at the first suicide attempt diagnosis
+    # use only first sui diagnosis codes, and the age at the first suicide attempt diagnosis
     # all patients have outcome 1
     print('In pre_dict_to_triples_1st_sui...')
     print('len(uid_records):', len(uid_records))
     triples = []
+    n_1visit = n_2morevisit = n_1sui =  n_2moresui = 0
     for uid, records in tqdm(uid_records.items()):
         # records: [ddat, outcome, sex, age, codes * ]
         dxs = []
         i = -1
         ddat = outcome = sex = age = None
         first_sui_age = 9999
+
+        if len(records) == 1:
+            n_1visit += 1
+        else:
+            n_2morevisit += 1
+
+        _nsui = 0
         for rec in records:
+            outcome = rec[1]
+            if outcome:
+                _nsui += 1
+
+        if _nsui == 1:
+            n_1sui += 1
+        else:
+            n_2moresui += 1
+
+        for rec in records:  # only add first record
             i += 1
             ddat, outcome, sex, age = rec[:4]
             if outcome and age < first_sui_age:
                 first_sui_age = age
+
             encodes = set([enfunc(x) for x in rec[4:]])
             dxs.append(list(encodes))
-            # break
-
+            break
+        # 2021-10-25
+        # first sequence is visit with sui attempt, only use first
+        # add two behaviour features: number of visit, and the time between first and last non-sui visits
+        # 3 for this type of data
         triples.append([uid,
-                        [dxs, first_sui_age, sex],
-                        [1, 0]
+                        [dxs, first_sui_age, sex, len(dxs)-1, 0],
+                        [3, 0]
                         ])
 
     print('len(triples):', len(triples))
-    pickle.dump(triples, open('pickles/final_pats_1st_sui_triples_before20150930.pkl', 'wb'))
+    print('n_1visit:', n_1visit, 'n_2morevisit:', n_2morevisit, 'n_1sui:', n_1sui, 'n_2moresui:', n_2moresui)
+    foname = 'pickles/final_pats_1st_sui_triples_before20150930.pkl'
+    pickle.dump(triples, open(foname, 'wb'))
+    print('Dump {} done!'.format(foname))
     return triples
 
 #

@@ -35,7 +35,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='process parameters')
     # Input
     parser.add_argument("--random_seed", type=int, default=0)
-    parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST', 'LIGHTGBM'], default='MLP')
+    parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST', 'LIGHTGBM'], default='LR')
     # Deep PSModels
     parser.add_argument('--batch_size', type=int, default=256)  # 768)  # 64)
     parser.add_argument('--learning_rate', type=float, default=1e-3)  # 0.001
@@ -185,6 +185,7 @@ if __name__ == '__main__':
         print('len(dx_name):', len(dx_name))
 
     my_dataset = Dataset(data_1st_neg, diag_name=dx_name)
+    ttttt = my_dataset._to_tensor()
     my_dataset_aux = Dataset(data_1st_sui, diag_name=dx_name, diag_code_vocab=my_dataset.diag_code_vocab)
 
     n_feature = my_dataset.DIM_OF_CONFOUNDERS  # my_dataset.med_vocab_length + my_dataset.diag_vocab_length + 3
