@@ -50,14 +50,15 @@ class Dataset(torch.utils.data.Dataset):
               'year:', np.ptp(self.time_diff_1andlast) / 365)
         self.time_diff_1andlast = (self.time_diff_1andlast - np.min(self.time_diff_1andlast)) / np.ptp(
             self.time_diff_1andlast)
+        self.time_diff_1andlast[np.isnan(self.time_diff_1andlast)] = 0
 
         # feature name
         diag_col_name = self.diag_code_vocab.feature_name()
-        col_name = (diag_col_name,
+        self.col_name = (diag_col_name,
                     ['sex'],
                     ['age10-14', 'age15-19', 'age20-24'],
                     ['n_sequence1', 'n_sequence2', 'n_sequence3', 'n_sequence4', 'n_sequence5orMore', 'time_diff_1andlast'])
-        self.FEATURE_NAME = np.asarray(sum(col_name, []))
+        self.FEATURE_NAME = np.asarray(sum(self.col_name, []))
 
         # feature dim: diag_visit, 3age, 1sex, 5_n_sequence, 1_time_diff_1andlast
         # self.DIM_OF_CONFOUNDERS = len(self.diag_code_vocab) + 10
@@ -169,7 +170,7 @@ class Dataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.diagnoses_visits)
 
-    def _to_tensor(self, verbose=1):
+    def flatten_to_tensor(self, use_behavior=True):
         # 2021/10/25
         # for static, pandas dataframe-like learning
         # refer to flatten_data function
@@ -177,14 +178,11 @@ class Dataset(torch.utils.data.Dataset):
         #  0: two or more events, w/o suicide, negative
         #  1: two or more events, last is suicide, positive
         #  2: only 1 visit w/o suicide
-        #  3:  first visit with suicide, only use first visit, may change pre_feat.py later
+        #  3: first visit with suicide, only use first visit, may change pre_feat.py later
         #  4: time to event/censoring
-
         x, y = [], []
         uid_list = []
-
-        x_at_sui = []
-        uid_sui_list = []
+        y_more = []
         for index in range(self.__len__()):
             confounder, outcome, uid = self.__getitem__(index)
             diag, sex, age, n_sequence, time_diff_1andlast = confounder
@@ -193,22 +191,36 @@ class Dataset(torch.utils.data.Dataset):
                 dx = np.sum(diag[:-1], axis=0)
                 # # issue: age is not suicide age, n)sequence is problem --> should only predict dx
                 # x_at_sui.append(np.concatenate((diag[-1], [sex], age, n_sequence, [time_diff_1andlast])))
-                x_at_sui.append(diag[-1])
-                uid_sui_list.append(uid)
+                y_more.append(diag[-1])
+                # y_more.append(np.concatenate((diag[-1], [sex], age)))
             else:
                 dx = np.sum(diag, axis=0)
+                y_more.append(np.zeros_like(dx))
+                # y_more.append(np.zeros_like(np.concatenate((diag[-1], [sex], age))))
             # encode as boolean value
             dx = np.where(dx > 0, 1, 0)
-            x.append(np.concatenate((dx, [sex], age, n_sequence, [time_diff_1andlast])))
+            if use_behavior:
+                x.append(np.concatenate((dx, [sex], age, n_sequence, [time_diff_1andlast])))  #
+            else:
+                x.append(np.concatenate((dx, [sex], age)))  #
             y.append(outcome)
             uid_list.append(uid)
 
         x, y = np.asarray(x), np.asarray(y)
-        x_at_sui = np.asarray(x_at_sui)
-
+        y_more = np.asarray(y_more)
+        uid = np.asarray(uid_list)
+        print('y_more, non-zero: ', (y_more.sum(0) > 0).sum(), ' ratio:', (y_more.sum(0) > 0).mean())
+        if not use_behavior:
+            self.col_name = (self.diag_code_vocab.feature_name(),
+                             ['sex'],
+                             ['age10-14', 'age15-19', 'age20-24'])
+            self.FEATURE_NAME = np.asarray(sum(self.col_name, []))
+            self.DIM_OF_CONFOUNDERS = len(self.FEATURE_NAME)
+            print('Not use_behavior features, DIM_OF_CONFOUNDERS: ', self.DIM_OF_CONFOUNDERS)
+        # (y_more.sum(0) > 0).sum()
         # if verbose:
         #     d1 = len(dx)
         #     print('...dx:', x[:, :d1].shape, 'non-zero ratio:', (x[:, :d1] != 0).mean(), 'all-zero:',
         #           (x[:, :d1].mean(0) == 0).sum())
         #     print('...all:', x.shape, 'non-zero ratio:', (x != 0).mean(), 'all-zero:', (x.mean(0) == 0).sum())
-        return x, y, uid_list, x_at_sui, uid_sui_list
+        return x, y, uid, y_more

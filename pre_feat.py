@@ -257,7 +257,7 @@ def pre_dict_to_triples_1st_sui(uid_records, enfunc):
         # add two behaviour features: number of visit, and the time between first and last non-sui visits
         # 3 for this type of data
         triples.append([uid,
-                        [dxs, first_sui_age, sex, len(dxs)-1, 0],
+                        [dxs, first_sui_age, sex, len(dxs), 0],
                         [3, 0]
                         ])
 
