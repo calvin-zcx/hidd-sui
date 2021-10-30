@@ -201,7 +201,7 @@ class MLModels:
                 auc, threshold, mid, len(y_pre_prob), spec, recall, precision, r[3][0], r[3][1]))
             # print('precision_recall_fscore_support:\n', r)
 
-        return auc, threshold, specificity, recall, precision, r[3][0], r[3][1], r
+        return auc, threshold, spec, recall, precision, r[3][0], r[3][1], r
 
     def performance_at_specificity_or_threshold(self, x, y, specificity=0.95, threshold=None,
                                                 tolerance=1e-6, maxiter=100, verbose=1):

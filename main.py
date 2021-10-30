@@ -38,12 +38,13 @@ def parse_args():
     parser = argparse.ArgumentParser(description='process parameters')
     # Input
     parser.add_argument("--random_seed", type=int, default=0)
-    parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST', 'LIGHTGBM', "PRETRAIN"], default='MLP')
+    parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST',
+                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='MMLP')
     # Deep PSModels
     parser.add_argument('--batch_size', type=int, default=256)  # 768)  # 64)
     parser.add_argument('--learning_rate', type=float, default=1e-3)  # 0.001
     parser.add_argument('--weight_decay', type=float, default=1e-6)  # )0001)
-    parser.add_argument('--epochs', type=int, default=30)  #40)  # 30
+    parser.add_argument('--epochs', type=int, default=35)  #40)  # 30
     # MLP
     parser.add_argument('--hidden_size', type=str, default='', help=', delimited integers')
     # Output
@@ -113,7 +114,8 @@ def logits_to_probability(logits, normalized):
             raise ValueError
 
 
-def transfer_data(model, dataloader, cuda=True, normalized=False, pretrain_model=None, exclude_1_visit=False):
+def transfer_data(model, dataloader, cuda=True, normalized=False,
+                  pretrain_model=None, exclude_1_visit=False):
     with torch.no_grad():
         model.eval()
         loss_list = []
@@ -140,6 +142,8 @@ def transfer_data(model, dataloader, cuda=True, normalized=False, pretrain_model
             _, labels = Y[:, :2].max(dim=1)
             Y = labels
             logits = model(X_embed)
+            if isinstance(logits, tuple):
+                logits = logits[0]
             # loss = F.cross_entropy(logits, Y)
             loss = nn.CrossEntropyLoss()(logits, labels)
 
@@ -381,17 +385,20 @@ if __name__ == '__main__':
             embedding = embedding.detach().data.numpy()
         tsne_plot(embedding, yy, perplexity=50, dump=True, fname='tsne-AE-positiveSui-vs-1stSui')
 
-    if args.run_model in ['MLP', 'AE']:
+    if args.run_model in ['MLP', 'AE', 'MMLP']:
         # Try to use top y_more codes for multi-task/or sequence-2-sequence
         print('y_more, non-zero: ', (y_more.sum(0) > 0).sum(), ' ratio:', (y_more.sum(0) > 0).mean())
-        multi_dim = np.where(y_more.sum(0) > 20)[0]  # at least 20 patients for one feature dim
+        multi_feature_number_threshold = 20
+        multi_dim = np.where(y_more.sum(0) > multi_feature_number_threshold)[0]  # at least 20 patients for one feature dim
         multi_dim_name = my_dataset.FEATURE_NAME[multi_dim]
-        print('Use #features >=20 for multi-task learning, {} features are: '.format(len(multi_dim)), multi_dim_name)
+        n_multi_dim = len(multi_dim)
+        print('Use #features >={} for multi-task learning, {} features are: '.format(
+            multi_feature_number_threshold, len(multi_dim)), multi_dim_name)
         my_dataset_flat = data_utils.TensorDataset(
             torch.FloatTensor(x),  # feature
             torch.LongTensor(y[:, :4]),  # Y, data type
             torch.FloatTensor(y[:, 4]),  # Y, time 2 event
-            torch.LongTensor(y_more[:, multi_dim]),  # Y, selected y for multi-task
+            torch.FloatTensor(y_more[:, multi_dim]),  # Y, selected y for multi-task
             torch.LongTensor(range(dataset_size)),  # index of data, to get uid_list[idx]
         )
         exclude_1_visit = False
@@ -410,6 +417,159 @@ if __name__ == '__main__':
                                                  sampler=val_sampler)
         test_loader = torch.utils.data.DataLoader(my_dataset_flat, batch_size=args.batch_size,
                                                   sampler=test_sampler)
+        if args.run_model == 'MMLP':
+            print("**************************************************")
+            print("**************************************************")
+            print(args.run_model, ' model learning:')
+            # PSModels configuration & training
+            paras_grid = {
+                'hidden_size': [[32,32], [64,32], [128, 64], [128, 32]],  #, 32,  64, 128], [32,32], [64,32],[128, 64], [256,128], [128, 64, 32]
+                'lr': [1e-3, 1e-4],
+                'weight_decay': [1e-4, 1e-5, 1e-6],
+                'batch_size': [1024],
+                'dropout': [0.5],
+                'multi_task_classes': [n_multi_dim]
+            }
+
+            hyper_paras_names, hyper_paras_v = zip(*paras_grid.items())
+            hyper_paras_list = list(itertools.product(*hyper_paras_v))
+            print('Model {} Searching Space N={}: '.format(args.run_model, len(hyper_paras_list)), paras_grid)
+
+            best_hyper_paras = None
+            best_model = None
+            best_auc = float('-inf')
+            best_model_epoch = -1
+            results = []
+            i = -1
+            i_iter = -1
+            for hyper_paras in tqdm(hyper_paras_list):
+                i += 1
+                hidden_size, lr, weight_decay, batch_size, dropout, multi_task_classes = hyper_paras
+                print('In hyper-paras space [{}/{}]...'.format(i, len(hyper_paras_list)))
+                print(hyper_paras_names)
+                print(hyper_paras)
+
+                train_loader_shuffled = torch.utils.data.DataLoader(my_dataset_flat, batch_size=batch_size,
+                                                                    sampler=train_sampler)
+                print('len(train_loader_shuffled): ', len(train_loader_shuffled),
+                      'train_loader_shuffled.batch_size: ', train_loader_shuffled.batch_size)
+
+                model_params = dict(input_size=n_feature, num_classes=2, hidden_size=hidden_size,
+                                    dropout=dropout, multi_task_classes=multi_task_classes)
+                print('Model: MLP')
+                print(model_params)
+                model = mlp.MultiMLP(**model_params)
+                if args.cuda:
+                    model = model.to('cuda')
+                print(model)
+
+                optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+                # optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+
+                for epoch in tqdm(range(args.epochs)):
+                    i_iter += 1
+                    epoch_losses = []
+                    for X, Y, Y_t2e, Y_more, idx in train_loader_shuffled:
+                        model.train()
+                        # train IPW
+                        optimizer.zero_grad()
+
+                        if args.cuda:
+                            X = X.float().to('cuda')
+                            Y = Y.long().to('cuda')
+                            Y_more = Y_more.float().to('cuda')
+                        # How to use Y?
+                        # a. Ignore Y[:, 2]. If not using 1 visit, Y[:, :2].
+                        # b. Treat  Y[:, 2] as negative. If using 1 visit, Y[:, 0] = Y[:, 0] + Y[:, 2]
+                        # c. Treat  Y[:, 2] as censoring. Or to predict Y[:, 2] censoring?
+                        if not exclude_1_visit:
+                            Y[:, 0] = Y[:, 0] + Y[:, 2]
+                        _, labels = Y[:, :2].max(dim=1)
+
+                        Y_logits, Y2_logits, Y3_logits = model(X)
+                        # loss_ipw = F.binary_cross_entropy_with_logits(treatment_logits, treatment.float())
+                        # loss1 = F.cross_entropy(Y_logits, Y)
+                        loss_sup = nn.CrossEntropyLoss()(Y_logits, labels)
+                        loss_multitask = F.binary_cross_entropy_with_logits(Y2_logits, Y_more)
+                        loss_AE = F.binary_cross_entropy_with_logits(Y3_logits, X)
+
+                        # loss = loss1 + loss2
+                        loss = loss_sup + 0.5*loss_multitask  # + 0.5*loss_AE
+                        loss.backward()
+                        optimizer.step()
+                        epoch_losses.append(loss.item())
+
+                    # just finish 1 epoch
+                    # scheduler.step()
+                    epoch_losses = np.mean(epoch_losses)
+
+                    auc_val, loss_val, Y_val, Y_pred_val, uid_val, X_val, X_val_embed = transfer_data(model,
+                                                                                         val_loader,
+                                                                                         cuda=args.cuda,
+                                                                                         normalized=False,
+                                                                                         pretrain_model=None,
+                                                                                         exclude_1_visit = exclude_1_visit)
+                    results.append(
+                        (i_iter, i, epoch, hyper_paras, epoch_losses, loss_val, auc_val))
+
+                    print('HP-i:{}, epoch:{}, train-loss:{}, val-loss:{}, val-auc:{}'.format(
+                        i, epoch, epoch_losses, loss_val, auc_val))
+
+                    if auc_val > best_auc:
+                        best_model = model
+                        best_hyper_paras = hyper_paras
+                        best_auc = auc_val
+                        best_model_epoch = epoch
+                        print('Save Best PSModel at Hyper-iter[{}/{}]'.format(i, len(hyper_paras_list)),
+                              'Epoch: ', epoch, 'val-auc:', best_auc)
+                        print(hyper_paras_names)
+                        print(hyper_paras)
+                        save_model(model, args.save_model_filename, model_params=model_params)
+
+            col_name = ['i', 'ipara', 'epoch', 'paras', "train_epoch_losses", "loss_val", "auc_val"]
+            results = pd.DataFrame(results, columns=col_name)
+
+            print('Model selection finished! Save Global Best PSModel at Hyper-iter [{}/{}], Epoch: {}'.format(
+                i, len(hyper_paras_list), best_model_epoch), 'val-auc:', best_auc)
+            print(hyper_paras_names)
+            print(best_hyper_paras)
+            results.to_csv(args.save_model_filename + '_ALL-model-select.csv')
+
+            # evaluation on test
+            best_model = load_model(mlp.MultiMLP, args.save_model_filename)
+            best_model.to(args.device)
+            test_auc, test_loss, test_y, test_y_pre, test_uid, test_x, test_x_embed = transfer_data(best_model, test_loader,
+                                                                                       cuda=args.cuda,
+                                                                                       normalized=False,
+                                                                                       pretrain_model=None,
+                                                                                       exclude_1_visit = True)
+            print('test_loss:', test_loss, 'test_auc: ', test_auc)
+            print('...Original data results: ')
+            print('......Results at specificity 0.9:')
+            result_1 = ml.MLModels._performance_at_specificity_or_threshold(test_y_pre, test_y, specificity=0.9)
+            print('......Results at specificity 0.95:')
+            result_2 = ml.MLModels._performance_at_specificity_or_threshold(test_y_pre, test_y, specificity=0.95)
+
+            df1 = pd.DataFrame([result_1 + (best_hyper_paras,), result_2 + (best_hyper_paras,)],
+                               columns=["AUC", "threshold", "Specificity", "Sensitivity/recall", "PPV/precision",
+                                        "n_negative", "n_positive", "precision_recall_fscore_support",
+                                        'best_hyper_paras'],
+                               index=['r_9', 'r_95'])
+            df1.to_csv('output/test_results_{}r{}.csv'.format(args.run_model, args.random_seed))
+            # df2 = pd.DataFrame({'aux_x': aux_x.mean(axis=0), 'train_x': train_x.mean(axis=0),
+            #                     'train_x_pos': train_x[train_y == 1].mean(axis=0)},
+            #                    index=feature_name).reset_index()
+            # df2.to_csv('output/data_train_vs_aux_{}r{}.csv'.format(args.run_model, args.random_seed))
+
+            threshold = result_2[1]
+            test_y_pre = (test_y_pre > threshold).astype(int)
+            r = precision_recall_fscore_support(test_y, test_y_pre)
+            print('precision_recall_fscore_support:\n', r)
+            feat = [';'.join(feature_name[np.nonzero(test_x[i, :])[0]]) for i in range(len(test_x))]
+            pd.DataFrame(
+                {'test_uid': uid_list[test_uid], 'test_y_pre_prob': test_y_pre, 'test_y_pre': test_y_pre, 'test_y': test_y,
+                 'feat': feat}).to_csv('output/test_pre_details_{}r{}.csv'.format(args.run_model, args.random_seed))
+            print('Done! Total Time used:', time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
 
         if args.run_model == 'MLP':
             print("**************************************************")
@@ -423,7 +583,7 @@ if __name__ == '__main__':
                 pretrain_model = None
             # PSModels configuration & training
             paras_grid = {
-                'hidden_size': [32, 64, [32,32], [64,64]],  #, 64, 128],
+                'hidden_size': [[128, 64]],  #, 32,  64, 128], [32,32], [64,32],[128, 64], [256,128], [128, 64, 32][128, 32]
                 'lr': [1e-3, 1e-4],
                 'weight_decay': [1e-4, 1e-5, 1e-6],
                 'batch_size': [1024],
