@@ -170,7 +170,7 @@ class Dataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.diagnoses_visits)
 
-    def flatten_to_tensor(self, use_behavior=True):
+    def flatten_to_tensor(self, use_behavior=True, normalized_count=True):
         # 2021/10/25
         # for static, pandas dataframe-like learning
         # refer to flatten_data function
@@ -198,7 +198,8 @@ class Dataset(torch.utils.data.Dataset):
                 y_more.append(np.zeros_like(dx))
                 # y_more.append(np.zeros_like(np.concatenate((diag[-1], [sex], age))))
             # encode as boolean value
-            dx = np.where(dx > 0, 1, 0)
+            if not normalized_count:
+                dx = np.where(dx > 0, 1, 0)
             if use_behavior:
                 x.append(np.concatenate((dx, [sex], age, n_sequence, [time_diff_1andlast])))  #
             else:
@@ -207,6 +208,11 @@ class Dataset(torch.utils.data.Dataset):
             uid_list.append(uid)
 
         x, y = np.asarray(x), np.asarray(y)
+        if normalized_count:
+            ndiag = diag.shape[1]
+            x[:, :ndiag] = np.log(x[:, :ndiag]+1)
+            x[:, :ndiag] = (x[:, :ndiag] - np.min(x[:, :ndiag], axis=0)) / np.ptp(x[:, :ndiag], axis=0)
+
         y_more = np.asarray(y_more)
         uid = np.asarray(uid_list)
         print('y_more, non-zero: ', (y_more.sum(0) > 0).sum(), ' ratio:', (y_more.sum(0) > 0).mean())

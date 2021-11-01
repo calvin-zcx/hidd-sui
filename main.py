@@ -39,7 +39,7 @@ def parse_args():
     # Input
     parser.add_argument("--random_seed", type=int, default=0)
     parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST',
-                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='MMLP')
+                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='LR')
     # Deep PSModels
     parser.add_argument('--batch_size', type=int, default=256)  # 768)  # 64)
     parser.add_argument('--learning_rate', type=float, default=1e-3)  # 0.001
@@ -256,6 +256,7 @@ if __name__ == '__main__':
 
     print('args: ', args)
     print('random_seed: ', args.random_seed)
+    print('args.device: ', args.device)
 
     with open(r'pickles/final_pats_1st_neg_triples_before20150930.pkl', 'rb') as f:
         # final_pats_1st_neg_triples_exclude1visit.pkl
@@ -456,7 +457,7 @@ if __name__ == '__main__':
 
                 model_params = dict(input_size=n_feature, num_classes=2, hidden_size=hidden_size,
                                     dropout=dropout, multi_task_classes=multi_task_classes)
-                print('Model: MLP')
+                print('Model: ')
                 print(model_params)
                 model = mlp.MultiMLP(**model_params)
                 if args.cuda:
@@ -494,7 +495,7 @@ if __name__ == '__main__':
                         loss_AE = F.binary_cross_entropy_with_logits(Y3_logits, X)
 
                         # loss = loss1 + loss2
-                        loss = loss_sup + 0.5*loss_multitask  # + 0.5*loss_AE
+                        loss = loss_sup + loss_multitask  #  # + 0.5*loss_multitask  # + 0.5*loss_AE
                         loss.backward()
                         optimizer.step()
                         epoch_losses.append(loss.item())
