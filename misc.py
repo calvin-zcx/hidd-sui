@@ -1,10 +1,8 @@
 import os
 import shutil
 import zipfile
-
 import urllib.parse
 import urllib.request
-
 import torch
 import torch.utils.data
 from dataset import *

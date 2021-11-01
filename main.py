@@ -1,8 +1,6 @@
 import sys
-
 # for linux env.
 import torch
-
 sys.path.insert(0, '..')
 import pandas as pd
 import time
@@ -15,7 +13,6 @@ import numpy as np
 import functools
 import os
 from torch.utils.data.sampler import SubsetRandomSampler
-from scipy.special import softmax
 
 print = functools.partial(print, flush=True)
 from dataset import *
@@ -30,16 +27,17 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import TruncatedSVD
 import torch.nn as nn
 import torch.nn.functional as F
-from utils import save_model, load_model, check_and_mkdir
+from utils import *
 import torch.utils.data as data_utils
 from sklearn.cluster import KMeans
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='process parameters')
     # Input
     parser.add_argument("--random_seed", type=int, default=0)
     parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST',
-                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='LR')
+                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='MMLP')
     # Deep PSModels
     parser.add_argument('--batch_size', type=int, default=256)  # 768)  # 64)
     parser.add_argument('--learning_rate', type=float, default=1e-3)  # 0.001
@@ -67,183 +65,6 @@ def parse_args():
     check_and_mkdir(args.save_model_filename)
 
     return args
-
-
-# flaten series into static
-# train_x, train_t, train_y = flatten_data(my_dataset, train_indices)  # (1764,713), (1764,), (1764,)
-def flatten_data(mdata, data_indices, verbose=1, bool=True):
-    x, y = [], []
-    uid_list = []
-    for idx in data_indices:
-        confounder, outcome, uid = mdata[idx][0], mdata[idx][1], mdata[idx][2]
-        dx, sex, age = confounder[0], confounder[1], confounder[2]
-        # if uid in ['2042577', '1169413']:
-        #     print(uid)
-        dx = np.sum(dx, axis=0)
-        if bool:
-            dx = np.where(dx > 0, 1, 0)
-
-        x.append(np.concatenate((dx, [sex], age)))
-        y.append(outcome)
-        uid_list.append(uid)
-
-    x, y = np.asarray(x), np.asarray(y)
-    if verbose:
-        d1 = len(dx)
-        print('...dx:', x[:, :d1].shape, 'non-zero ratio:', (x[:, :d1] != 0).mean(), 'all-zero:',
-              (x[:, :d1].mean(0) == 0).sum())
-        print('...all:', x.shape, 'non-zero ratio:', (x != 0).mean(), 'all-zero:', (x.mean(0) == 0).sum())
-    return x, y[:, 0], y[:, 1], uid_list
-
-
-def logits_to_probability(logits, normalized):
-    if normalized:
-        if len(logits.shape) == 1:
-            return logits
-        elif len(logits.shape) == 2:
-            return logits[:, 1]
-        else:
-            raise ValueError
-    else:
-        if len(logits.shape) == 1:
-            return 1 / (1 + np.exp(-logits))
-        elif len(logits.shape) == 2:
-            prop = softmax(logits, axis=1)
-            return prop[:, 1]
-        else:
-            raise ValueError
-
-
-def transfer_data(model, dataloader, cuda=True, normalized=False,
-                  pretrain_model=None, exclude_1_visit=False):
-    with torch.no_grad():
-        model.eval()
-        loss_list = []
-        logits_list = []
-        Y_list = []
-        uid_list = []
-        X_list = []
-        X_embed_list = []
-
-        for X, Y, Y_t2e, Y_more, idx in dataloader:
-            if cuda:
-                X = X.float().to('cuda')
-                Y = Y.long().to('cuda')
-                Y_more = Y_more.long().to('cuda')
-
-            if pretrain_model:
-                with torch.no_grad():
-                    pretrain_model.eval()
-                    X_embed = pretrain_model.encoder(X)
-            else:
-                X_embed = X
-            if not exclude_1_visit:
-                Y[:, 0] = Y[:, 0] + Y[:, 2]
-            _, labels = Y[:, :2].max(dim=1)
-            Y = labels
-            logits = model(X_embed)
-            if isinstance(logits, tuple):
-                logits = logits[0]
-            # loss = F.cross_entropy(logits, Y)
-            loss = nn.CrossEntropyLoss()(logits, labels)
-
-            if cuda:
-                logits = logits.to('cpu').detach().data.numpy()
-                Y = Y.to('cpu').detach().data.numpy()
-                X = X.to('cpu').detach().data.numpy()
-                X_embed = X_embed.to('cpu').detach().data.numpy()
-                loss = loss.to('cpu').detach().data.numpy()
-            else:
-                logits = logits.detach().data.numpy()
-                Y = Y.detach().data.numpy()
-                X = X.detach().data.numpy()
-                X_embed = X_embed.detach().data.numpy()
-                loss = loss.detach().data.numpy()
-
-            logits_list.append(logits)  # [:,1])
-            Y_list.append(Y)
-            X_list.append(X)
-            X_embed_list.append(X_embed)
-            loss_list.append(loss.item())
-            uid_list.append(idx)
-
-        loss_final = np.mean(loss_list)
-        Y_final = np.concatenate(Y_list)
-        X_final = np.concatenate(X_list)
-        X_embed_final = np.concatenate(X_embed)
-        logits_final = np.concatenate(logits_list)
-        uid_final = np.concatenate(uid_list)
-
-        Y_pred_final = logits_to_probability(logits_final, normalized=normalized)
-        auc = roc_auc_score(Y_final, Y_pred_final)
-
-        return auc, loss_final, Y_final, Y_pred_final, uid_final, X_final, X_embed_final
-
-
-def tsne_plot(x, y, perplexity = 50, dump=False, fname='tsne'):
-    emethod = 'tsne'
-    # x, y, t2e, all_uid = flatten_data(my_dataset, indices)
-    tsne = TSNE(n_components=2, verbose=1, perplexity=perplexity, init='pca')  # , n_iter=300)
-    results = tsne.fit_transform(x)
-    # df = pd.DataFrame(data={'y': y.astype(int),
-    #                         '{}-Dim-1'.format(emethod): results[:, 0],
-    #                         '{}-Dim-2'.format(emethod): results[:, 1]})
-    markers = ['o', 's', 'p', 'x', '^', '+', '*', '<', 'D', 'h', '>']
-    # markers = ['o', 'x']
-    colors = ['#F65453', '#82A2D3', '#FAC200', 'purple']
-
-    # plt.figure(figsize=(16, 10))
-    # fig, ax = plt.subplots(figsize=(12, 8))
-    plt.figure(figsize=(12, 8))
-
-    plt.scatter(results[np.where(y[:, 2] == 1), 0], results[np.where(y[:, 2] == 1), 1], marker='s', c='b',
-                  alpha=0.5, label='One visit')
-    plt.scatter(results[np.where(y[:, 3] == 1), 0], results[np.where(y[:, 3] == 1), 1], marker='+', c='purple',
-                alpha=0.5, label='1st suicide')
-    plt.scatter(results[(y[:,0] == 1), 0], results[(y[:,0] == 1), 1], marker='o', c='g', alpha=0.5, label='Negative')
-    plt.scatter(results[np.where(y[:, 1] == 1), 0], results[np.where(y[:, 1] == 1), 1], s=100, marker='x', c='r',
-                alpha=1, label='Positive')
-    plt.legend(loc='best')
-    # ax = sns.scatterplot(
-    #     x="{}-Dim-1".format(emethod),
-    #     y="{}-Dim-2".format(emethod),
-    #     hue="y",
-    #     # palette=sns.color_palette("hls", 2),
-    #     data=df,
-    #     legend="full",
-    #     alpha=0.5,
-    #     style="y")  # , s=30)
-
-    # fig = ax.get_figure()
-    if dump:
-        plt.savefig('figure/{}-per{}-pcainit.png'.format(fname, perplexity))
-        plt.savefig('figure/{}-per{}-pcainit.pdf'.format(fname, perplexity))
-    plt.show()
-    plt.close()
-
-
-def print_records_of_uid(uid, fname=r'pickles/final_pats_1st_neg_dict_before20150930.pkl'):
-    # e.g. uid = '937504'
-    # debug: print features of one patient:
-    with open(fname, 'rb') as f:
-        datadict = pickle.load(f)
-        if os.path.exists('pickles/icd_des.pkl'):
-            with open(r'pickles/icd_des.pkl', 'rb') as f2:
-                icd_des = pickle.load(f2)
-        else:
-            icd = pd.read_excel('data/CMS32_DESC_LONG_SHORT_DX.xlsx ')
-            icd_des = {r[0]: r[2] for i, r in icd.iterrows()}
-            pickle.dump(icd_des, open('pickles/icd_des.pkl', 'wb'))
-        print('len(data_1st_neg):', len(datadict))
-        print('len(icd_des):', len(icd_des))
-
-    arecord = datadict.get(uid)
-    a_details = []
-    for a in arecord:
-        a_details.append(a[:4] + [x + '_' + icd_des.get(x, '') for x in a[4:]])
-    for a in a_details:
-        print(a)
-    return datadict
 
 
 if __name__ == '__main__':
@@ -495,7 +316,7 @@ if __name__ == '__main__':
                         loss_AE = F.binary_cross_entropy_with_logits(Y3_logits, X)
 
                         # loss = loss1 + loss2
-                        loss = loss_sup + loss_multitask  #  # + 0.5*loss_multitask  # + 0.5*loss_AE
+                        loss = loss_sup + 0.*loss_multitask + 0.*loss_AE  # + loss_multitask  #  # + 0.5*loss_multitask  # + 0.5*loss_AE
                         loss.backward()
                         optimizer.step()
                         epoch_losses.append(loss.item())
@@ -543,7 +364,7 @@ if __name__ == '__main__':
                                                                                        cuda=args.cuda,
                                                                                        normalized=False,
                                                                                        pretrain_model=None,
-                                                                                       exclude_1_visit = True)
+                                                                                       exclude_1_visit =exclude_1_visit)
             print('test_loss:', test_loss, 'test_auc: ', test_auc)
             print('...Original data results: ')
             print('......Results at specificity 0.9:')
@@ -584,7 +405,7 @@ if __name__ == '__main__':
                 pretrain_model = None
             # PSModels configuration & training
             paras_grid = {
-                'hidden_size': [[128, 64]],  #, 32,  64, 128], [32,32], [64,32],[128, 64], [256,128], [128, 64, 32][128, 32]
+                'hidden_size': [[32,32], [128, 64]],  #[128, 64], 32,  64, 128], [32,32], [64,32],[128, 64], [256,128], [128, 64, 32][128, 32]
                 'lr': [1e-3, 1e-4],
                 'weight_decay': [1e-4, 1e-5, 1e-6],
                 'batch_size': [1024],
@@ -714,7 +535,7 @@ if __name__ == '__main__':
                                                                                        cuda=args.cuda,
                                                                                        normalized=False,
                                                                                        pretrain_model=pretrain_model,
-                                                                                       exclude_1_visit = True)
+                                                                                       exclude_1_visit=exclude_1_visit)
             print('test_loss:', test_loss, 'test_auc: ', test_auc)
             print('...Original data results: ')
             print('......Results at specificity 0.9:')

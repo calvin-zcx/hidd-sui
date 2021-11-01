@@ -1,5 +1,9 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+torch.backends.cudnn.deterministic = True  # For reproducibility
+torch.backends.cudnn.benchmark = False
 
 
 class MLP(nn.Module):
