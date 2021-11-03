@@ -24,7 +24,7 @@ class MLModels:
     """
     def __init__(self, learner, paras_grid=None):
         self.learner = learner
-        assert self.learner in ('LR', 'XGBOOST', 'LIGHTGBM')
+        assert self.learner in ('LR', 'XGBOOST', 'LIGHTGBM', 'SVM')
 
         if (paras_grid is None) or (not paras_grid) or (not isinstance(paras_grid, dict)):
             self.paras_grid = {}
@@ -66,6 +66,8 @@ class MLModels:
                 model = xgb.XGBClassifier(**para_d).fit(X_train, Y_train)
             elif self.learner == 'LIGHTGBM':
                 model = lgb.LGBMClassifier(**para_d).fit(X_train, Y_train)
+            elif self.learner == 'SVM':
+                model = svm.SVC(**para_d).fit(X_train, Y_train)
             else:
                 raise ValueError
 

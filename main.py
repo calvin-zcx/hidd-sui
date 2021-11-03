@@ -36,8 +36,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='process parameters')
     # Input
     parser.add_argument("--random_seed", type=int, default=0)
-    parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST',
-                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='LIGHTGBM')
+    parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST', 'SVM'
+                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='XGBOOST')
     # Deep PSModels
     parser.add_argument('--batch_size', type=int, default=256)  # 768)  # 64)
     parser.add_argument('--learning_rate', type=float, default=1e-3)  # 0.001
@@ -567,7 +567,7 @@ if __name__ == '__main__':
                  'feat': feat}).to_csv('output/test_pre_details_{}r{}.csv'.format(args.run_model, args.random_seed))
             print('Done! Total Time used:', time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
 
-    if args.run_model in ['LR', 'XGBOOST', 'LIGHTGBM']:
+    if args.run_model in ['LR', 'XGBOOST', 'LIGHTGBM', 'SVM']:
         print("**************************************************")
         print("**************************************************")
         print(args.run_model, ' model learning:')
@@ -621,12 +621,19 @@ if __name__ == '__main__':
                 'random_state': [args.random_seed],
                 # "class_weight": [None, "balanced"],
             }
-        elif args.run_model == 'LIGHTGBM':
+        elif args.run_model == 'LIGHTGBM' or args.run_model == 'XGBOOST':
             paras_grid = {
                 'max_depth': [3, 4, 5],
                 'learning_rate': np.arange(0.01, 1, 0.1),
                 'num_leaves': np.arange(5, 50, 10),
                 'min_child_samples': [50, 100, 150, 200, 250],
+                'random_state': [args.random_seed],
+            }
+        elif args.run_model == 'SVM':
+            paras_grid = {
+                'probability': [True],
+                'kernel': ["linear", "poly", "rbf", "sigmoid"],
+                'C': np.arange(0.01, 1, 0.1),
                 'random_state': [args.random_seed],
             }
         else:

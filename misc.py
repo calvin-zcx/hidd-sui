@@ -44,7 +44,7 @@ def results_summary(model='LR'):
     raux_9 = []
     raux_95 = []
     for seed in range(0, 20):
-        df = pd.read_csv('output/MLP_win_behaviour_logcount_0.5multitask_0.5AE/test_results_{}r{}.csv'.format(model, seed))
+        df = pd.read_csv('output/test_results_{}r{}.csv'.format(model, seed))
         r9.append(df.loc[0, :].tolist())
         r95.append(df.loc[1, :].tolist())
         try:
@@ -75,5 +75,5 @@ def results_summary(model='LR'):
 if __name__ == '__main__':
     # shell_for_ml()
     # results_model_selection_for_ml(cohort_dir_name='save_cohort_all_loose', model='LR')
-    results_summary('MMLP')
+    results_summary('LIGHTGBM')
     print('Done')
