@@ -209,8 +209,8 @@ def tsne_plot(x, y, perplexity = 50, dump=False, fname='tsne'):
 
     # fig = ax.get_figure()
     if dump:
-        plt.savefig('figure/{}-per{}-pcainit.png'.format(fname, perplexity))
-        plt.savefig('figure/{}-per{}-pcainit.pdf'.format(fname, perplexity))
+        plt.savefig('figure/{}-per{}.png'.format(fname, perplexity))
+        plt.savefig('figure/{}-per{}.pdf'.format(fname, perplexity))
     plt.show()
     plt.close()
 
@@ -236,4 +236,4 @@ def print_records_of_uid(uid, fname=r'pickles/final_pats_1st_neg_dict_before2015
         a_details.append(a[:4] + [x + '_' + icd_des.get(x, '') for x in a[4:]])
     for a in a_details:
         print(a)
-    return datadict
+    return a_details, datadict

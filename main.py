@@ -37,7 +37,7 @@ def parse_args():
     # Input
     parser.add_argument("--random_seed", type=int, default=0)
     parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST',
-                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='MMLP')
+                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='LIGHTGBM')
     # Deep PSModels
     parser.add_argument('--batch_size', type=int, default=256)  # 768)  # 64)
     parser.add_argument('--learning_rate', type=float, default=1e-3)  # 0.001
@@ -95,7 +95,7 @@ if __name__ == '__main__':
     my_dataset = Dataset(data_1st_neg, diag_name=dx_name)
     x, y, uid_list, y_more = my_dataset.flatten_to_tensor()
     my_dataset_aux = Dataset(data_1st_sui, diag_name=dx_name, diag_code_vocab=my_dataset.diag_code_vocab)
-    x_aux, y_aux, uid_list_aux, y_more_aux = my_dataset_aux.flatten_to_tensor()
+    x_aux, y_aux, uid_list_aux, y_more_aux = my_dataset_aux.flatten_to_tensor(normalized_count=False)
 
     n_feature = my_dataset.DIM_OF_CONFOUNDERS  # my_dataset.med_vocab_length + my_dataset.diag_vocab_length + 3
     feature_name = my_dataset.FEATURE_NAME
@@ -123,15 +123,17 @@ if __name__ == '__main__':
     if args.run_model in ['PRETRAIN']:
         # xx = np.concatenate((x[:5000,:], x_aux[:200,:]))
         # yy = np.concatenate((y[:5000,:], y_aux[:200,:]))
-        xx = np.concatenate((
-            y_more[y[:, 1]==1, :], # suicide visit of positive
-            x_aux  # 1st suicide visit
-        ))
-        yy = np.concatenate((y[y[:, 1]==1,:], y_aux))
+        xx = np.concatenate((x[val_indices + test_indices, :], x_aux[:500, :]))
+        yy = np.concatenate((y[val_indices + test_indices, :], y_aux[:500, :]))
+        # xx = np.concatenate((
+        #     y_more[y[:, 1]==1, :], # suicide visit of positive
+        #     x_aux  # 1st suicide visit
+        # ))
+        # yy = np.concatenate((y[y[:, 1]==1,:], y_aux))
 
         # feature_name_xx = feature_name[np.where(xx.sum(0) > 0)]
         # xx = xx[:, np.where(xx.sum(0)>0)[0]]
-        tsne_plot(xx, yy, perplexity=50, dump=True, fname='tsne-raw-positiveSui-vs-1stSui')
+        tsne_plot(xx, yy, perplexity=50, dump=True, fname='tsne-raw-logcount-valtest-binaryNobehaviour')
         # kmeans = KMeans(n_clusters=3, random_state=args.random_seed).fit(xx)
         # kmeans.labels_
         # df = pd.DataFrame(xx, columns=feature_name_xx)
@@ -175,7 +177,7 @@ if __name__ == '__main__':
             i_iter += 1
             epoch_losses = []
             for X, Y in train_loader:
-                if i_iter == 1:
+                if epoch == 0 and i_iter == 1:
                     print(X.shape, Y.shape)
                     print(X.dtype, Y.dtype)
                 premodel.train()
@@ -199,13 +201,14 @@ if __name__ == '__main__':
 
         save_model(premodel, args.save_model_filename, model_params=model_params)
 
+        pretrain_model = load_model(autoencoder.Autoencoder, args.save_model_filename)
         xx = torch.FloatTensor(xx)
-        model = premodel.to('cpu')
+        model = pretrain_model.to('cpu')
         with torch.no_grad():
-            premodel.eval()
-            embedding = premodel.encoder(xx)
+            pretrain_model.eval()
+            embedding = pretrain_model.encoder(xx)
             embedding = embedding.detach().data.numpy()
-        tsne_plot(embedding, yy, perplexity=50, dump=True, fname='tsne-AE-positiveSui-vs-1stSui')
+        tsne_plot(embedding, yy, perplexity=50, dump=True, fname='tsne-AE-logcount-valtest-binaryNobehaviour')
 
     if args.run_model in ['MLP', 'AE', 'MMLP']:
         # Try to use top y_more codes for multi-task/or sequence-2-sequence
@@ -593,6 +596,22 @@ if __name__ == '__main__':
         # train_x = svd.transform(train_x)
         # val_x = svd.transform(val_x)
         # test_x = svd.transform(test_x)
+
+        # use_pretrain = True
+        # if use_pretrain:
+        #     pretrain_model = load_model(autoencoder.Autoencoder, args.pretrain_model_filename)
+        #     train_x = torch.FloatTensor(train_x)
+        #     val_x = torch.FloatTensor(val_x)
+        #     test_x = torch.FloatTensor(test_x)
+        #     model = pretrain_model.to('cpu')
+        #     with torch.no_grad():
+        #         pretrain_model.eval()
+        #         train_x = pretrain_model.encoder(train_x)
+        #         train_x = train_x.detach().data.numpy()
+        #         val_x = pretrain_model.encoder(val_x)
+        #         val_x = val_x.detach().data.numpy()
+        #         test_x = pretrain_model.encoder(test_x)
+        #         test_x = test_x.detach().data.numpy()
 
         if args.run_model == 'LR':
             paras_grid = {

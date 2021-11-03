@@ -223,10 +223,4 @@ class Dataset(torch.utils.data.Dataset):
             self.FEATURE_NAME = np.asarray(sum(self.col_name, []))
             self.DIM_OF_CONFOUNDERS = len(self.FEATURE_NAME)
             print('Not use_behavior features, DIM_OF_CONFOUNDERS: ', self.DIM_OF_CONFOUNDERS)
-        # (y_more.sum(0) > 0).sum()
-        # if verbose:
-        #     d1 = len(dx)
-        #     print('...dx:', x[:, :d1].shape, 'non-zero ratio:', (x[:, :d1] != 0).mean(), 'all-zero:',
-        #           (x[:, :d1].mean(0) == 0).sum())
-        #     print('...all:', x.shape, 'non-zero ratio:', (x != 0).mean(), 'all-zero:', (x.mean(0) == 0).sum())
         return x, y, uid, y_more
