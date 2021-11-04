@@ -36,8 +36,10 @@ def parse_args():
     parser = argparse.ArgumentParser(description='process parameters')
     # Input
     parser.add_argument("--random_seed", type=int, default=0)
+    parser.add_argument('--encode', choices=['ccssingle', 'ccsmultiple', 'icd3d', 'icd5d'],
+                        default='icd3d') #'ccssingle'
     parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST', 'SVM'
-                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='XGBOOST')
+                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='LR')
     # Deep PSModels
     parser.add_argument('--batch_size', type=int, default=256)  # 768)  # 64)
     parser.add_argument('--learning_rate', type=float, default=1e-3)  # 0.001
@@ -79,18 +81,41 @@ if __name__ == '__main__':
     print('random_seed: ', args.random_seed)
     print('args.device: ', args.device)
 
-    with open(r'pickles/final_pats_1st_neg_triples_before20150930.pkl', 'rb') as f:
+    if args.encode == 'ccssingle':
+        print('Encoding: ccs single')
+        encode2namefile = r'pickles/ccs2name.pkl'
+        majordatafile = r'pickles/final_pats_1st_neg_triples_before20150930.pkl'
+        augdatafile = r'pickles/final_pats_1st_sui_triples_before20150930.pkl'
+    elif args.encode == 'icd5d':
+        print('Encoding: icd first 5 digits')
+        encode2namefile = r'pickles/icd_des.pkl'
+        majordatafile = r'pickles/final_pats_1st_neg_triples_before20150930-icd5d.pkl'
+        augdatafile = r'pickles/final_pats_1st_sui_triples_before20150930-icd5d.pkl'
+    elif args.encode == 'icd3d':
+        print('Encoding: icd first 3 digits')
+        encode2namefile = r'pickles/icd3d2name.pkl'
+        majordatafile = r'pickles/final_pats_1st_neg_triples_before20150930-icd3d.pkl'
+        augdatafile = r'pickles/final_pats_1st_sui_triples_before20150930-icd3d.pkl'
+    else:
+        raise ValueError
+
+    print('encode2namefile:', encode2namefile)
+    print('majordatafile:', majordatafile)
+    print('augdatafile:', augdatafile)
+
+    with open(encode2namefile, 'rb') as f:
+        dx_name = pickle.load(f)
+        print('len(dx_name):', len(dx_name))
+
+    with open(majordatafile, 'rb') as f:
         # final_pats_1st_neg_triples_exclude1visit.pkl
+        # final_pats_1st_neg_triples_before20150930.pkl
         data_1st_neg = pickle.load(f)
         print('len(data_1st_neg):', len(data_1st_neg))
 
-    with open(r'pickles/final_pats_1st_sui_triples_before20150930.pkl', 'rb') as f:
+    with open(augdatafile, 'rb') as f:
         data_1st_sui = pickle.load(f)
         print('len(data_1st_sui):', len(data_1st_sui))
-
-    with open(r'pickles/ccs2name.pkl', 'rb') as f:
-        dx_name = pickle.load(f)
-        print('len(dx_name):', len(dx_name))
 
     my_dataset = Dataset(data_1st_neg, diag_name=dx_name)
     x, y, uid_list, y_more = my_dataset.flatten_to_tensor()

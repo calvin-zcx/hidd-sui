@@ -78,8 +78,9 @@ class Dataset(torch.utils.data.Dataset):
     def _process_code(self, vocab, codes):
         multi_hot = np.zeros((len(vocab, )), dtype='float')
         for code in codes:
-            if code in vocab.code2id:
-                multi_hot[vocab.code2id[code]] = 1
+            code_ = code.split('_')[0]
+            if code_ in vocab.code2id:
+                multi_hot[vocab.code2id[code_]] = 1
         return multi_hot
 
     def _process_ages(self):

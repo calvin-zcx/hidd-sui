@@ -18,9 +18,33 @@ print = functools.partial(print, flush=True)
 
 def parse_args():
     parser = argparse.ArgumentParser(description='process parameters')
-    parser.add_argument('--encode', choices=['ccssingle', 'ccsmultiple'], default='ccssingle')
+    parser.add_argument('--encode', choices=['ccssingle', 'ccsmultiple', 'icd3d', 'icd5d'],
+                        default='icd3d') #'ccssingle'
     args = parser.parse_args()
     return args
+
+
+def load_icd9_2_firstd(d=3):
+    """
+    return first d-digits of the icd9 code as encoding, and build the encodeing -- name mapping
+    :param d:
+    :return:
+    """
+    icd2name = pickle.load(open(r'pickles/icd_des.pkl', 'rb'))
+    encode2name = {}
+    if d == 3:
+        for key, value in icd2name.items():
+            if key[:3] in encode2name:
+                encode2name[key[:3]] += ('_' + key+'$'+value)
+            else:
+                encode2name[key[:3]] = key+'$'+value
+        pickle.dump(encode2name, open('pickles/icd3d2name.pkl', 'wb'))
+    elif d==5:
+        encode2name = icd2name
+    else:
+        raise ValueError
+
+    return icd2name, encode2name
 
 
 def load_icd9_2_ccssingle():
@@ -202,9 +226,9 @@ def pre_dict_to_triples_1st_neg(uid_records, enfunc, exclude1visit=False):
     print('len(triples):', len(triples))
     print('n_1visit:', n_1visit, 'n_pos:', n_pos, 'n_neg:', n_neg)
     if exclude1visit:
-        foname = 'pickles/final_pats_1st_neg_triples_exclude1visit_before20150930.pkl'
+        foname = 'pickles/final_pats_1st_neg_triples_exclude1visit_before20150930-icd3d.pkl'
     else:
-        foname = 'pickles/final_pats_1st_neg_triples_before20150930.pkl'
+        foname = 'pickles/final_pats_1st_neg_triples_before20150930-icd3d.pkl'
 
     pickle.dump(triples, open(foname, 'wb'))
     print('Dump to {} done!'.format(foname))
@@ -263,7 +287,7 @@ def pre_dict_to_triples_1st_sui(uid_records, enfunc):
 
     print('len(triples):', len(triples))
     print('n_1visit:', n_1visit, 'n_2morevisit:', n_2morevisit, 'n_1sui:', n_1sui, 'n_2moresui:', n_2moresui)
-    foname = 'pickles/final_pats_1st_sui_triples_before20150930.pkl'
+    foname = 'pickles/final_pats_1st_sui_triples_before20150930-icd3d.pkl'
     pickle.dump(triples, open(foname, 'wb'))
     print('Dump {} done!'.format(foname))
     return triples
@@ -327,21 +351,38 @@ def pre_dict_to_triples_1st_sui(uid_records, enfunc):
 
 if __name__ == '__main__':
     args = parse_args()
+    print('args.encode:', args.encode)
     if args.encode == 'ccssingle':
         print('Encoding: ccs single')
         icd2ccs, ccs2icd, ccs2name = load_icd9_2_ccssingle()
     elif args.encode == 'ccsmultiple':
         print('Encoding: ccs multiple')
         icd2ccs, ccs2icd, ccs2name = load_icd9_2_ccsmultiple()
+    elif args.encode == 'icd5d':
+        print('Encoding: icd first 5 digits')
+        # icd2name = pickle.load(open(r'pickles/icd_des.pkl', 'rb'))
+        icd2name, encode2name = load_icd9_2_firstd(d=5)
+    elif args.encode == 'icd3d':
+        print('Encoding: icd first 3 digits')
+        # icd2name = pickle.load(open(r'pickles/icd_des.pkl', 'rb'))
+        icd2name, encode2name = load_icd9_2_firstd(d=3)
     else:
         raise ValueError
 
-    def enfunc(x):
-        a = icd2ccs.get(x, [])
-        if a:
-            return a[0] + '_' + a[1]
-        else:
-            return '0_INVALID_NO_DX'
+    def enfunc(x, encode=args.encode):
+        if 'ccs' in encode:
+            a = icd2ccs.get(x, [])
+            if a:
+                return a[0] + '_' + a[1]
+            else:
+                return '0_INVALID_NO_DX'
+        elif encode == 'icd3d':
+            name = icd2name.get(x, '')
+            return x[:3] + '_' + x+'$'+name
+        elif encode == 'icd5d':
+            name = icd2name.get(x, '')
+            return x[:5] + '_' + x +'$'+name
+
 
     with open(r'data/final_pats_1st_neg_before20150930.pkl', 'rb') as f:
         df_1st_neg = pickle.load(f)

@@ -23,6 +23,7 @@ class CodeVocab(object):
         #     self.add_code_list(self.special_codes)
 
     def add_code_list(self, code_list, rebuild=True):
+        code_list = [x.split('_')[0] for x in code_list]
         self.code2count.update(code_list)
         for code in code_list:
             if code not in self.code2id:
