@@ -213,6 +213,7 @@ class Dataset(torch.utils.data.Dataset):
             ndiag = diag.shape[1]
             x[:, :ndiag] = np.log(x[:, :ndiag]+1)
             x[:, :ndiag] = (x[:, :ndiag] - np.min(x[:, :ndiag], axis=0)) / np.ptp(x[:, :ndiag], axis=0)
+            x[np.isnan(x)] = 0
 
         y_more = np.asarray(y_more)
         uid = np.asarray(uid_list)

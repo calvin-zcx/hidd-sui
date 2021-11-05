@@ -1,4 +1,4 @@
-mkdir output/log
+mkdir output\log
 python main.py --random_seed 0 2>&1 | tee output/log/lr_0.log
 python main.py --random_seed 1 2>&1 | tee output/log/lr_1.log
 python main.py --random_seed 2 2>&1 | tee output/log/lr_2.log

@@ -39,7 +39,7 @@ def parse_args():
     parser.add_argument('--encode', choices=['ccssingle', 'ccsmultiple', 'icd3d', 'icd5d'],
                         default='icd3d') #'ccssingle'
     parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST', 'SVM'
-                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='LR')
+                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='MMLP')
     # Deep PSModels
     parser.add_argument('--batch_size', type=int, default=256)  # 768)  # 64)
     parser.add_argument('--learning_rate', type=float, default=1e-3)  # 0.001
@@ -344,7 +344,7 @@ if __name__ == '__main__':
                         loss_AE = F.binary_cross_entropy_with_logits(Y3_logits, X)
 
                         # loss = loss1 + loss2
-                        loss = loss_sup + 0.5*loss_multitask + 0.5*loss_AE  # + loss_multitask  #  # + 0.5*loss_multitask  # + 0.5*loss_AE
+                        loss = loss_sup + 0.*loss_multitask + 0.*loss_AE  # + loss_multitask  #  # + 0.5*loss_multitask  # + 0.5*loss_AE
                         loss.backward()
                         optimizer.step()
                         epoch_losses.append(loss.item())
