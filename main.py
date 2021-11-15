@@ -36,10 +36,11 @@ def parse_args():
     parser = argparse.ArgumentParser(description='process parameters')
     # Input
     parser.add_argument("--random_seed", type=int, default=0)
+    parser.add_argument('--dataset', choices=['hidd', 'apcd'], default='apcd')
     parser.add_argument('--encode', choices=['ccssingle', 'ccsmultiple', 'icd3d', 'icd5d'],
-                        default='icd3d') #'ccssingle'
+                        default='icd3d')  # 'ccssingle'
     parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST', 'SVM'
-                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='MMLP')
+                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='LIGHTGBM')
     # Deep PSModels
     parser.add_argument('--batch_size', type=int, default=256)  # 768)  # 64)
     parser.add_argument('--learning_rate', type=float, default=1e-3)  # 0.001
@@ -63,7 +64,8 @@ def parse_args():
         rseed = datetime.now()
     args.random_seed = rseed
 
-    args.save_model_filename = os.path.join(args.output_dir, 'S{}_{}'.format(args.random_seed, args.run_model))
+    args.save_model_filename = os.path.join(args.output_dir, args.dataset, args.encode,
+                                            'S{}_{}'.format(args.random_seed, args.run_model))
     check_and_mkdir(args.save_model_filename)
 
     return args
@@ -84,21 +86,14 @@ if __name__ == '__main__':
     if args.encode == 'ccssingle':
         print('Encoding: ccs single')
         encode2namefile = r'pickles/ccs2name.pkl'
-        majordatafile = r'pickles/final_pats_1st_neg_triples_before20150930.pkl'
-        augdatafile = r'pickles/final_pats_1st_sui_triples_before20150930.pkl'
-    elif args.encode == 'icd5d':
-        print('Encoding: icd first 5 digits')
-        encode2namefile = r'pickles/icd_des.pkl'
-        majordatafile = r'pickles/final_pats_1st_neg_triples_before20150930-icd5d.pkl'
-        augdatafile = r'pickles/final_pats_1st_sui_triples_before20150930-icd5d.pkl'
     elif args.encode == 'icd3d':
         print('Encoding: icd first 3 digits')
         encode2namefile = r'pickles/icd3d2name.pkl'
-        majordatafile = r'pickles/final_pats_1st_neg_triples_before20150930-icd3d.pkl'
-        augdatafile = r'pickles/final_pats_1st_sui_triples_before20150930-icd3d.pkl'
     else:
         raise ValueError
 
+    majordatafile = r'pickles/{}/final_pats_1st_neg_triples_{}-{}.pkl'.format(args.dataset, args.dataset, args.encode)
+    augdatafile = r'pickles/{}/final_pats_1st_sui_triples_{}-{}.pkl'.format(args.dataset, args.dataset, args.encode)
     print('encode2namefile:', encode2namefile)
     print('majordatafile:', majordatafile)
     print('augdatafile:', augdatafile)
@@ -117,7 +112,7 @@ if __name__ == '__main__':
         data_1st_sui = pickle.load(f)
         print('len(data_1st_sui):', len(data_1st_sui))
 
-    my_dataset = Dataset(data_1st_neg, diag_name=dx_name)
+    my_dataset = Dataset(data_1st_neg, diag_name=dx_name)  #, diag_code_threshold=50
     x, y, uid_list, y_more = my_dataset.flatten_to_tensor()
     my_dataset_aux = Dataset(data_1st_sui, diag_name=dx_name, diag_code_vocab=my_dataset.diag_code_vocab)
     x_aux, y_aux, uid_list_aux, y_more_aux = my_dataset_aux.flatten_to_tensor(normalized_count=False)
@@ -640,7 +635,7 @@ if __name__ == '__main__':
 
         if args.run_model == 'LR':
             paras_grid = {
-                'penalty': ['l1', 'l2'],
+                'penalty': ['l1', 'l2'],  #, 'elasticnet' need l1_ratio???
                 'C': 10 ** np.arange(-2, 2, 0.2),  # 'C': [0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 20],
                 'max_iter': [150],  # [100, 200, 500],
                 'random_state': [args.random_seed],
@@ -678,14 +673,17 @@ if __name__ == '__main__':
                            columns=["AUC", "threshold", "Specificity", "Sensitivity/recall", "PPV/precision",
                                     "n_negative", "n_positive", "precision_recall_fscore_support", 'best_hyper_paras'],
                            index=['r_9', 'r_95'])
-        df1.to_csv('output/test_results_{}r{}.csv'.format(args.run_model, args.random_seed))
+        df1.to_csv(os.path.join(os.path.dirname(args.save_model_filename),
+                                'test_results_{}r{}.csv'.format(args.run_model, args.random_seed))
+                   )
 
         if args.run_model == 'LR':
             df3 = pd.DataFrame({'train_x_model': model.best_model.coef_[0]},
                                index=feature_name).reset_index()
-            df3.to_csv('output/model_coef_train_LRr{}.csv'.format(args.random_seed))
-
-        print('Done! Total Time used:', time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
+            # df3.to_csv('output/model_coef_train_LRr{}.csv'.format(args.random_seed))
+            df3.to_csv(os.path.join(os.path.dirname(args.save_model_filename),
+                                    'model_coef_train_LRr{}.csv'.format(args.random_seed))
+                       )
 
         test_y_pre_prob = model.predict_proba(test_x)
         auc = roc_auc_score(test_y, test_y_pre_prob)
@@ -695,8 +693,12 @@ if __name__ == '__main__':
         print('precision_recall_fscore_support:\n', r)
         feat = [';'.join(feature_name[np.nonzero(test_x[i, :])[0]]) for i in range(len(test_x))]
         pd.DataFrame({'test_uid': test_uid, 'test_y_pre_prob': test_y_pre_prob, 'test_y_pre': test_y_pre, 'test_y': test_y,
-                      'feat': feat}).to_csv('output/test_pre_details_{}r{}.csv'.format(args.run_model, args.random_seed))
+                      'feat': feat}).to_csv(os.path.join(os.path.dirname(args.save_model_filename),
+                                                         'test_pre_details_{}r{}.csv'.format(args.run_model, args.random_seed)
+                                                         )
+                                            )
 
+        print('Done! Total Time used:', time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
         # pickle.dump(model, open('pickles/models.pkl', 'wb'))
 
 

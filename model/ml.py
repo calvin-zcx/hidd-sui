@@ -59,8 +59,10 @@ class MLModels:
             if self.learner == 'LR':
                 if para_d.get('penalty', '') == 'l1':
                     para_d['solver'] = 'liblinear'
-                else:
+                elif para_d.get('penalty', '') == 'l2':
                     para_d['solver'] = 'lbfgs'
+                else:
+                    para_d['solver'] = 'saga'
                 model = LogisticRegression(**para_d).fit(X_train, Y_train, sample_weight=sample_weight)
             elif self.learner == 'XGBOOST':
                 model = xgb.XGBClassifier(**para_d).fit(X_train, Y_train)

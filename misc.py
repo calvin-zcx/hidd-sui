@@ -75,5 +75,5 @@ def results_summary(model='LR'):
 if __name__ == '__main__':
     # shell_for_ml()
     # results_model_selection_for_ml(cohort_dir_name='save_cohort_all_loose', model='LR')
-    results_summary('LIGHTGBM')
+    results_summary('LR')
     print('Done')

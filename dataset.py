@@ -85,6 +85,7 @@ class Dataset(torch.utils.data.Dataset):
 
     def _process_ages(self):
         ages = np.zeros((len(self.ages), 3))
+        n_out = 0
         for i, x in enumerate(self.ages):
             if 10 <= x <= 14:
                 ages[i, 0] = 1
@@ -94,7 +95,10 @@ class Dataset(torch.utils.data.Dataset):
                 ages[i, 2] = 1
             else:
                 print(i, 'row, wrong age within [10, 24]: ', x)
-                raise ValueError
+                ages[i, 2] = 1
+                n_out += 1
+                # raise ValueError
+        print('wrong age within [10, 24]: {}/{}'.format(n_out, len(self.ages)))
         return ages
 
     def _process_n_sequence(self):
