@@ -75,5 +75,5 @@ def results_summary(model='LR', data='apcd', encode='icd3d'):
 if __name__ == '__main__':
     # shell_for_ml()
     # results_model_selection_for_ml(cohort_dir_name='save_cohort_all_loose', model='LR')
-    results_summary(model='LIGHTGBM', data='apcd', encode='ccssingle')
+    results_summary(model='LIGHTGBM', data='apcd', encode='icd3d')
     print('Done')

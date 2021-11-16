@@ -40,7 +40,7 @@ def parse_args():
     parser.add_argument('--encode', choices=['ccssingle', 'icd3d', 'icd5d'],  # 'ccsmultiple',
                         default='icd3d')  # 'ccssingle'
     parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST', 'SVM'
-                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='LR')
+                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='LIGHTGBM')
     parser.add_argument('--dump_detail', action='store_true',
                         help='dump details of prediction')
     # Deep PSModels

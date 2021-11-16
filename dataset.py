@@ -180,7 +180,7 @@ class Dataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.diagnoses_visits)
 
-    def flatten_to_tensor(self, use_behavior=True, normalized_count=False):
+    def flatten_to_tensor(self, use_behavior=False, normalized_count=True):
         print('Dataset flatten_to_tensor:......')
         print('use_behavior:', use_behavior, 'normalized_count: ', normalized_count)
         # 2021/10/25
