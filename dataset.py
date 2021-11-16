@@ -20,7 +20,7 @@ class Dataset(torch.utils.data.Dataset):
         self.n_sequence = []
         self.time_diff_1andlast = []
 
-        print('Build Dataset:\n')
+        print('Build Dataset:......')
         print('diag_code_threshold:',diag_code_threshold,
               'diag_code_topk:', diag_code_topk,
               'diag_code_vocab:', diag_code_vocab)
@@ -180,7 +180,9 @@ class Dataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.diagnoses_visits)
 
-    def flatten_to_tensor(self, use_behavior=True, normalized_count=True):
+    def flatten_to_tensor(self, use_behavior=True, normalized_count=False):
+        print('Dataset flatten_to_tensor:......')
+        print('use_behavior:', use_behavior, 'normalized_count: ', normalized_count)
         # 2021/10/25
         # for static, pandas dataframe-like learning
         # refer to flatten_data function
