@@ -94,7 +94,7 @@ class Dataset(torch.utils.data.Dataset):
             elif 20 <= x <= 24:
                 ages[i, 2] = 1
             else:
-                print(i, 'row, wrong age within [10, 24]: ', x)
+                # print(i, 'row, wrong age within [10, 24]: ', x)
                 ages[i, 2] = 1
                 n_out += 1
                 # raise ValueError

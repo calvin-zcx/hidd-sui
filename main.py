@@ -38,9 +38,11 @@ def parse_args():
     parser.add_argument("--random_seed", type=int, default=0)
     parser.add_argument('--dataset', choices=['hidd', 'apcd'], default='apcd')
     parser.add_argument('--encode', choices=['ccssingle', 'ccsmultiple', 'icd3d', 'icd5d'],
-                        default='icd3d')  # 'ccssingle'
+                        default='ccssingle')  # 'ccssingle'
     parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST', 'SVM'
-                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='LIGHTGBM')
+                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='LR')
+    parser.add_argument('--dump_detail', action='store_true',
+                        help='dump details of prediction')
     # Deep PSModels
     parser.add_argument('--batch_size', type=int, default=256)  # 768)  # 64)
     parser.add_argument('--learning_rate', type=float, default=1e-3)  # 0.001
@@ -112,7 +114,7 @@ if __name__ == '__main__':
         data_1st_sui = pickle.load(f)
         print('len(data_1st_sui):', len(data_1st_sui))
 
-    my_dataset = Dataset(data_1st_neg, diag_name=dx_name)  #, diag_code_threshold=50
+    my_dataset = Dataset(data_1st_neg, diag_name=dx_name, diag_code_threshold=20)  #, diag_code_threshold=50
     x, y, uid_list, y_more = my_dataset.flatten_to_tensor()
     my_dataset_aux = Dataset(data_1st_sui, diag_name=dx_name, diag_code_vocab=my_dataset.diag_code_vocab)
     x_aux, y_aux, uid_list_aux, y_more_aux = my_dataset_aux.flatten_to_tensor(normalized_count=False)
@@ -691,12 +693,12 @@ if __name__ == '__main__':
         test_y_pre = (test_y_pre_prob > threshold).astype(int)
         r = precision_recall_fscore_support(test_y, test_y_pre)
         print('precision_recall_fscore_support:\n', r)
-        feat = [';'.join(feature_name[np.nonzero(test_x[i, :])[0]]) for i in range(len(test_x))]
-        pd.DataFrame({'test_uid': test_uid, 'test_y_pre_prob': test_y_pre_prob, 'test_y_pre': test_y_pre, 'test_y': test_y,
-                      'feat': feat}).to_csv(os.path.join(os.path.dirname(args.save_model_filename),
-                                                         'test_pre_details_{}r{}.csv'.format(args.run_model, args.random_seed)
-                                                         )
-                                            )
+        if args.dump_detail:
+            feat = [';'.join(feature_name[np.nonzero(test_x[i, :])[0]]) for i in range(len(test_x))]
+            pd.DataFrame({'test_uid': test_uid, 'test_y_pre_prob': test_y_pre_prob, 'test_y_pre': test_y_pre, 'test_y': test_y,
+                          'feat': feat}).to_csv(os.path.join(os.path.dirname(args.save_model_filename),
+                                                             'test_pre_details_{}r{}.csv'.format(args.run_model, args.random_seed)
+                                                             ))
 
         print('Done! Total Time used:', time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
         # pickle.dump(model, open('pickles/models.pkl', 'wb'))

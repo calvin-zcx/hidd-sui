@@ -1,7 +1,7 @@
 mkdir output\log
 mkdir output/log
-python main.py --random_seed 0 2>&1 | tee output/log/lr_0.log
-python main.py --random_seed 1 2>&1 | tee output/log/lr_1.log
+python main.py --random_seed 0 --dump_detail 2>&1 | tee output/log/lr_0.log
+python main.py --random_seed 1 --dump_detail 2>&1 | tee output/log/lr_1.log
 python main.py --random_seed 2 2>&1 | tee output/log/lr_2.log
 python main.py --random_seed 3 2>&1 | tee output/log/lr_3.log
 python main.py --random_seed 4 2>&1 | tee output/log/lr_4.log
