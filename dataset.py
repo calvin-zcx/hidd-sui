@@ -20,6 +20,11 @@ class Dataset(torch.utils.data.Dataset):
         self.n_sequence = []
         self.time_diff_1andlast = []
 
+        print('Build Dataset:\n')
+        print('diag_code_threshold:',diag_code_threshold,
+              'diag_code_topk:', diag_code_topk,
+              'diag_code_vocab:', diag_code_vocab)
+
         for uid, patient_confounder, patient_outcome in tqdm(self.patient_list):
             self.outcome.append(patient_outcome)
             diag_visit, age, sex, _n_sequence, _time_diff_1andlast = patient_confounder

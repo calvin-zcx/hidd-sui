@@ -37,10 +37,10 @@ def parse_args():
     # Input
     parser.add_argument("--random_seed", type=int, default=0)
     parser.add_argument('--dataset', choices=['hidd', 'apcd'], default='apcd')
-    parser.add_argument('--encode', choices=['ccssingle', 'ccsmultiple', 'icd3d', 'icd5d'],
-                        default='ccssingle')  # 'ccssingle'
+    parser.add_argument('--encode', choices=['ccssingle', 'icd3d', 'icd5d'],  # 'ccsmultiple',
+                        default='icd3d')  # 'ccssingle'
     parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST', 'SVM'
-                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='LR')
+                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='LIGHTGBM')
     parser.add_argument('--dump_detail', action='store_true',
                         help='dump details of prediction')
     # Deep PSModels
