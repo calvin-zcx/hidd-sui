@@ -96,9 +96,11 @@ if __name__ == '__main__':
 
     majordatafile = r'pickles/{}/final_pats_1st_neg_triples_{}-{}.pkl'.format(args.dataset, args.dataset, args.encode)
     augdatafile = r'pickles/{}/final_pats_1st_sui_triples_{}-{}.pkl'.format(args.dataset, args.dataset, args.encode)
+    featuredatafile = r'pickles/{}/final_pats_1st_neg_triples_{}-{}.pkl'.format('hidd', 'hidd', args.encode)
     print('encode2namefile:', encode2namefile)
     print('majordatafile:', majordatafile)
     print('augdatafile:', augdatafile)
+    print('featuredatafile:', featuredatafile)
 
     with open(encode2namefile, 'rb') as f:
         dx_name = pickle.load(f)
@@ -114,6 +116,12 @@ if __name__ == '__main__':
         data_1st_sui = pickle.load(f)
         print('len(data_1st_sui):', len(data_1st_sui))
 
+    with open(featuredatafile, 'rb') as f:
+        hidd_data_1st_neg = pickle.load(f)
+        print('len(hidd_data_1st_neg):', len(hidd_data_1st_neg))
+
+    # hidd_dataset = Dataset(hidd_data_1st_neg, diag_name=dx_name) #, diag_code_threshold=10)
+    # my_dataset = Dataset(data_1st_neg, diag_code_vocab=hidd_dataset.diag_code_vocab)
     my_dataset = Dataset(data_1st_neg, diag_name=dx_name, diag_code_threshold=20)  #, diag_code_threshold=50
     x, y, uid_list, y_more = my_dataset.flatten_to_tensor()
     my_dataset_aux = Dataset(data_1st_sui, diag_name=dx_name, diag_code_vocab=my_dataset.diag_code_vocab)
