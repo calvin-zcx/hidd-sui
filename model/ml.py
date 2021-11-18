@@ -6,6 +6,7 @@ sys.path.insert(0, '../..')
 import pandas as pd
 from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn import svm, tree
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import AdaBoostClassifier
 import numpy as np
 import itertools
@@ -24,7 +25,7 @@ class MLModels:
     """
     def __init__(self, learner, paras_grid=None):
         self.learner = learner
-        assert self.learner in ('LR', 'XGBOOST', 'LIGHTGBM', 'SVM')
+        assert self.learner in ('LR', 'XGBOOST', 'LIGHTGBM', 'SVM', 'KNN')
 
         if (paras_grid is None) or (not paras_grid) or (not isinstance(paras_grid, dict)):
             self.paras_grid = {}
@@ -70,6 +71,8 @@ class MLModels:
                 model = lgb.LGBMClassifier(**para_d).fit(X_train, Y_train)
             elif self.learner == 'SVM':
                 model = svm.SVC(**para_d).fit(X_train, Y_train)
+            elif self.learner == 'KNN':
+                model = KNeighborsClassifier(**para_d).fit(X_train, Y_train)
             else:
                 raise ValueError
 

@@ -39,7 +39,7 @@ def parse_args():
     parser.add_argument('--dataset', choices=['hidd', 'apcd'], default='hidd')
     parser.add_argument('--encode', choices=['ccssingle', 'icd3d', 'icd5d'],  # 'ccsmultiple',
                         default='icd3d')  # 'ccssingle'
-    parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST', 'SVM'
+    parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST', 'SVM', 'KNN',
                                                 'LIGHTGBM', "PRETRAIN", "MMLP"], default='LR')
     parser.add_argument('--dump_detail', action='store_true',
                         help='dump details of prediction')
@@ -135,7 +135,7 @@ if __name__ == '__main__':
     y_pre_source = []
     y_pre_source_name = []
     for _m in ['LR', 'LIGHTGBM']:
-        for _s in range(1):
+        for _s in range(2):
             try:
                 _fname = 'output/apcd/icd3d/target_risk_by_source_{}r{}.csv'.format(_m, _s)
                 df = pd.read_csv(_fname)
@@ -615,7 +615,7 @@ if __name__ == '__main__':
                  'feat': feat}).to_csv('output/test_pre_details_{}r{}.csv'.format(args.run_model, args.random_seed))
             print('Done! Total Time used:', time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
 
-    if args.run_model in ['LR', 'XGBOOST', 'LIGHTGBM', 'SVM']:
+    if args.run_model in ['LR', 'XGBOOST', 'LIGHTGBM', 'SVM', 'KNN']:
         print("**************************************************")
         print("**************************************************")
         print(args.run_model, ' model learning:')
@@ -682,6 +682,12 @@ if __name__ == '__main__':
                 'probability': [True],
                 'kernel': ["linear", "poly", "rbf", "sigmoid"],
                 'C': np.arange(0.01, 1, 0.1),
+                'random_state': [args.random_seed],
+            }
+        elif args.run_model == 'KNN':
+            paras_grid = {
+                'n_neighbors': [100],
+                'weights': {"uniform", "distance"},
                 'random_state': [args.random_seed],
             }
         else:
