@@ -120,9 +120,9 @@ if __name__ == '__main__':
         hidd_data_1st_neg = pickle.load(f)
         print('len(hidd_data_1st_neg):', len(hidd_data_1st_neg))
 
-    # hidd_dataset = Dataset(hidd_data_1st_neg, diag_name=dx_name) #, diag_code_threshold=10)
-    # my_dataset = Dataset(data_1st_neg, diag_code_vocab=hidd_dataset.diag_code_vocab)
-    my_dataset = Dataset(data_1st_neg, diag_name=dx_name, diag_code_threshold=20)  #, diag_code_threshold=50
+    hidd_dataset = Dataset(hidd_data_1st_neg, diag_name=dx_name) #, diag_code_threshold=10)
+    my_dataset = Dataset(data_1st_neg, diag_code_vocab=hidd_dataset.diag_code_vocab)
+    # my_dataset = Dataset(data_1st_neg, diag_name=dx_name, diag_code_threshold=20)  #, diag_code_threshold=50
     x, y, uid_list, y_more = my_dataset.flatten_to_tensor()
     my_dataset_aux = Dataset(data_1st_sui, diag_name=dx_name, diag_code_vocab=my_dataset.diag_code_vocab)
     x_aux, y_aux, uid_list_aux, y_more_aux = my_dataset_aux.flatten_to_tensor()
