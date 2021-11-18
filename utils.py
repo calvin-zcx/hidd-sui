@@ -237,3 +237,19 @@ def print_records_of_uid(uid, fname=r'pickles/final_pats_1st_neg_dict_before2015
     for a in a_details:
         print(a)
     return a_details, datadict
+
+
+def x_target_to_source(target_x, target_vocab, source_x_dim, source_vocab):
+    target_x_transform = np.zeros((target_x.shape[0], source_x_dim))
+    # direct transform non-diagnostic dimensions len(target_vocab):target_x.shape[1]
+    target_x_transform[:, len(source_vocab):] = target_x[:, len(target_vocab):]
+    # mapping diagnostic dimensions 0:len(target_vocab)
+    for i in range(len(target_vocab)):
+        code = target_vocab.id2code[i]
+        col = source_vocab.code2id.get(code, -1)
+        if (col >= 0) and (col < target_x_transform.shape[1]):
+            target_x_transform[:, col] = target_x[:, i]
+        else:
+            print('{}th code {} (cnt:{} {}) from target not exist in source vocabulary'.format(
+                i, code, target_vocab.code2count[code], target_vocab.id2name[i]))
+    return target_x_transform

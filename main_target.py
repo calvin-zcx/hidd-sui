@@ -36,11 +36,11 @@ def parse_args():
     parser = argparse.ArgumentParser(description='process parameters')
     # Input
     parser.add_argument("--random_seed", type=int, default=0)
-    parser.add_argument('--dataset', choices=['hidd', 'apcd'], default='apcd')
+    parser.add_argument('--dataset', choices=['hidd', 'apcd'], default='hidd')
     parser.add_argument('--encode', choices=['ccssingle', 'icd3d', 'icd5d'],  # 'ccsmultiple',
                         default='icd3d')  # 'ccssingle'
     parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST', 'SVM'
-                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='LIGHTGBM')
+                                                'LIGHTGBM', "PRETRAIN", "MMLP"], default='LR')
     parser.add_argument('--dump_detail', action='store_true',
                         help='dump details of prediction')
     # Deep PSModels
@@ -96,11 +96,11 @@ if __name__ == '__main__':
 
     majordatafile = r'pickles/{}/final_pats_1st_neg_triples_{}-{}.pkl'.format(args.dataset, args.dataset, args.encode)
     augdatafile = r'pickles/{}/final_pats_1st_sui_triples_{}-{}.pkl'.format(args.dataset, args.dataset, args.encode)
-    featuredatafile = r'pickles/{}/final_pats_1st_neg_triples_{}-{}.pkl'.format('hidd', 'hidd', args.encode)
+    # targetdatafile = r'pickles/{}/final_pats_1st_neg_triples_{}-{}.pkl'.format('hidd', 'hidd', args.encode)
     print('encode2namefile:', encode2namefile)
     print('majordatafile:', majordatafile)
     print('augdatafile:', augdatafile)
-    print('featuredatafile:', featuredatafile)
+    # print('targetdatafile:', targetdatafile)
 
     with open(encode2namefile, 'rb') as f:
         dx_name = pickle.load(f)
@@ -116,21 +116,39 @@ if __name__ == '__main__':
         data_1st_sui = pickle.load(f)
         print('len(data_1st_sui):', len(data_1st_sui))
 
-    with open(featuredatafile, 'rb') as f:
-        hidd_data_1st_neg = pickle.load(f)
-        print('len(hidd_data_1st_neg):', len(hidd_data_1st_neg))
+    # with open(targetdatafile, 'rb') as f:
+    #     target_data_1st_neg = pickle.load(f)
+    #     print('len(target_data_1st_neg):', len(target_data_1st_neg))
 
-    hidd_dataset = Dataset(hidd_data_1st_neg, diag_name=dx_name) #, diag_code_threshold=10)
-    my_dataset = Dataset(data_1st_neg, diag_code_vocab=hidd_dataset.diag_code_vocab)
-    # my_dataset = Dataset(data_1st_neg, diag_name=dx_name, diag_code_threshold=20)  #, diag_code_threshold=50
+    # Goal: to learn source models, and make prediction on target data
+    # Target data
+    my_dataset = Dataset(data_1st_neg, diag_name=dx_name, diag_code_threshold=20)  #Dataset(data_1st_neg, diag_code_vocab=feat_dataset.diag_code_vocab)
     x, y, uid_list, y_more = my_dataset.flatten_to_tensor()
     my_dataset_aux = Dataset(data_1st_sui, diag_name=dx_name, diag_code_vocab=my_dataset.diag_code_vocab)
     x_aux, y_aux, uid_list_aux, y_more_aux = my_dataset_aux.flatten_to_tensor()
-
-    n_feature = my_dataset.DIM_OF_CONFOUNDERS  # my_dataset.med_vocab_length + my_dataset.diag_vocab_length + 3
+    n_feature = my_dataset.DIM_OF_CONFOUNDERS
     feature_name = my_dataset.FEATURE_NAME
     print('n_feature: ', n_feature, ':')
     # print(feature_name)
+
+    # load source predictions on target
+    y_pre_source = []
+    y_pre_source_name = []
+    for _m in ['LR', 'LIGHTGBM']:
+        for _s in range(1):
+            try:
+                _fname = 'output/apcd/icd3d/target_risk_by_source_{}r{}.csv'.format(_m, _s)
+                df = pd.read_csv(_fname)
+                y_pre_source.append(df['y_pre_prob'].to_numpy())
+                y_pre_source_name.append('source_{}r{}'.format(_m, _s))
+            except:
+                print(_fname, 'not exists!')
+
+    y_pre_source = np.stack(y_pre_source, axis=1)
+    x = np.concatenate([x, y_pre_source], axis=1)
+    feature_name = np.append(feature_name, y_pre_source_name)
+    n_feature += len(y_pre_source_name)
+    print('Augmented n_feature: ', n_feature, ':')
 
     # change later: 0.7:0.1:0.2 to see the difference
     train_ratio = 0.7  # 0.8  # 0.5
@@ -694,7 +712,14 @@ if __name__ == '__main__':
             df3.to_csv(os.path.join(os.path.dirname(args.save_model_filename),
                                     'model_coef_train_LRr{}.csv'.format(args.random_seed))
                        )
-
+        elif args.run_model == 'LIGHTGBM':
+            # lgb.plot_tree(model.best_model, tree_index=0, dpi=300)
+            df3 = pd.DataFrame(
+                {'feature_importances_': model.best_model.feature_importances_,
+                 'feature': model.best_model.feature_name_,
+                 'feature_name': feature_name}).to_csv(os.path.join(os.path.dirname(args.save_model_filename),
+                                                                    'feature_importance_{}r{}.csv'.format(
+                                                                        args.run_model, args.random_seed)))
         test_y_pre_prob = model.predict_proba(test_x)
         auc = roc_auc_score(test_y, test_y_pre_prob)
         threshold = result_2[1]
