@@ -131,24 +131,26 @@ if __name__ == '__main__':
     print('n_feature: ', n_feature, ':')
     # print(feature_name)
 
-    # load source predictions on target
-    y_pre_source = []
-    y_pre_source_name = []
-    for _m in ['LR', 'LIGHTGBM']:
-        for _s in range(2):
-            try:
-                _fname = 'output/apcd/icd3d/target_risk_by_source_{}r{}.csv'.format(_m, _s)
-                df = pd.read_csv(_fname)
-                y_pre_source.append(df['y_pre_prob'].to_numpy())
-                y_pre_source_name.append('source_{}r{}'.format(_m, _s))
-            except:
-                print(_fname, 'not exists!')
+    use_fusion = True
+    if use_fusion:
+        # load source predictions on target
+        y_pre_source = []
+        y_pre_source_name = []
+        for _m in ['LR', 'LIGHTGBM']:
+            for _s in range(1):
+                try:
+                    _fname = 'output/apcd/icd3d/target_risk_by_source_{}r{}.csv'.format(_m, _s)
+                    df = pd.read_csv(_fname)
+                    y_pre_source.append(df['y_pre_prob'].to_numpy())
+                    y_pre_source_name.append('source_{}r{}'.format(_m, _s))
+                except:
+                    print(_fname, 'not exists!')
 
-    y_pre_source = np.stack(y_pre_source, axis=1)
-    x = np.concatenate([x, y_pre_source], axis=1)
-    feature_name = np.append(feature_name, y_pre_source_name)
-    n_feature += len(y_pre_source_name)
-    print('Augmented n_feature: ', n_feature, ':')
+        y_pre_source = np.stack(y_pre_source, axis=1)
+        x = np.concatenate([x, y_pre_source], axis=1)
+        feature_name = np.append(feature_name, y_pre_source_name)
+        n_feature += len(y_pre_source_name)
+        print('Augmented n_feature: ', n_feature, ':')
 
     # change later: 0.7:0.1:0.2 to see the difference
     train_ratio = 0.7  # 0.8  # 0.5
@@ -677,6 +679,14 @@ if __name__ == '__main__':
                 'min_child_samples': [50, 100, 150, 200, 250],
                 'random_state': [args.random_seed],
             }
+            # paras_grid = {
+            #     'max_depth': [3, 4, 5, 6],
+            #     'learning_rate': np.arange(0.01, 1, 0.1),
+            #     'num_leaves': np.arange(10, 80, 10),
+            #     'min_child_samples': [50, 100],
+            #     "n_estimators": [5],
+            #     'random_state': [args.random_seed],
+            # }
         elif args.run_model == 'SVM':
             paras_grid = {
                 'probability': [True],
@@ -686,9 +696,9 @@ if __name__ == '__main__':
             }
         elif args.run_model == 'KNN':
             paras_grid = {
-                'n_neighbors': [100],
-                'weights': {"uniform", "distance"},
-                'random_state': [args.random_seed],
+                'n_neighbors': [5],
+                'weights': {"distance"}, #"uniform",
+                # 'random_state': [args.random_seed],
             }
         else:
             raise ValueError

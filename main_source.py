@@ -43,6 +43,8 @@ def parse_args():
                                                 'LIGHTGBM', "PRETRAIN", "MMLP"], default='KNN')
     parser.add_argument('--dump_detail', action='store_true',
                         help='dump details of prediction')
+
+    parser.add_argument('--knnk', type=int, default=50)
     # Deep PSModels
     parser.add_argument('--batch_size', type=int, default=256)  # 768)  # 64)
     parser.add_argument('--learning_rate', type=float, default=1e-3)  # 0.001
@@ -673,8 +675,8 @@ if __name__ == '__main__':
             }
         elif args.run_model == 'KNN':
             paras_grid = {
-                'n_neighbors': [100],
-                'weights': {"uniform", "distance"},
+                'n_neighbors': [args.knnk],
+                'weights': {"distance"},  # "uniform",
                 # 'random_state': [args.random_seed],
             }
         else:
