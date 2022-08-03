@@ -25,17 +25,11 @@ print = functools.partial(print, flush=True)
 def parse_args():
     parser = argparse.ArgumentParser(description='process parameters')
     # Input
-    parser.add_argument('--data_dir', type=str, default='../ipreprocess/output/save_cohort_all/')
-    # parser.add_argument('--treated_drug', type=str)
-    # parser.add_argument('--controlled_drug', choices=['atc', 'random'], default='random')
-    # parser.add_argument('--controlled_drug_ratio', type=int, default=3)  # 2 seems not good. keep unchanged
+    parser.add_argument('--dataset', type=str, choices=['apcd', 'hidd', 'khin'], default='hidd')
     parser.add_argument("--random_seed", type=int, default=0)
 
-    # parser.add_argument('--run_model', choices=['LSTM', 'LR', 'MLP', 'XGBOOST', 'LIGHTGBM'], default='MLP')
-    parser.add_argument('--med_code_topk', type=int, default=200)
-    # parser.add_argument('--drug_coding', choices=['rxnorm', 'gpi'], default='rxnorm')
-    # parser.add_argument('--stats', action='store_true')
-    # parser.add_argument('--stats_exit', action='store_true')
+    # parser.add_argument('--run_model', choices=['LSTM', 'MLP'], default='MLP')
+    # parser.add_argument('--med_code_topk', type=int, default=200)
     # Deep PSModels
     parser.add_argument('--batch_size', type=int, default=256)  # 768)  # 64)
     parser.add_argument('--learning_rate', type=float, default=1e-3)  # 0.001
@@ -51,7 +45,6 @@ def parse_args():
     # parser.add_argument('--hidden_size', type=str, default='', help=', delimited integers')
     # Output
     parser.add_argument('--output_dir', type=str, default='output/')
-
     args = parser.parse_args()
 
     # Modifying args
@@ -79,20 +72,22 @@ def parse_args():
 if __name__ == '__main__':
     start_time = time.time()
     args = parse_args()
-
-    np.random.seed(args.random_seed)
-    torch.manual_seed(args.random_seed)
-    torch.cuda.manual_seed(args.random_seed)
-    random.seed(args.random_seed)
-
     print('args: ', args)
     print('random_seed: ', args.random_seed)
     print('device: ', args.device)
-    # print('Drug {} cohort: '.format(args.treated_drug))
-    # print('save_model_filename', args.save_model_filename)
 
+    # reproducibility
+    np.random.seed(args.random_seed)
+    torch.manual_seed(args.random_seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(args.random_seed)
+    random.seed(args.random_seed)
+    torch.backends.cudnn.deterministic = True
+
+    #
+    print('Dataset:', args.dataset)
     encode2namefile = r'dataset/icd9encode2name.pkl'
-    majordatafile = r'dataset/final_pats_1st_neg_triples_{}-{}_new_labeled.pkl'.format('hidd', 'icd9')
+    majordatafile = r'dataset/final_pats_1st_neg_triples_{}-{}_new_labeled.pkl'.format(args.dataset, 'icd9')
     with open(encode2namefile, 'rb') as f:
         dx_name = pickle.load(f)
         print('len(dx_name):', len(dx_name))
