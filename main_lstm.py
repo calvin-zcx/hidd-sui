@@ -167,10 +167,11 @@ if __name__ == '__main__':
     print('LSTM-Attention PS PSModels learning:')
 
     paras_grid = {
-        'hidden_size': [32,],  #  64, 128
-        'diag_hidden_size': [32, 64, 128],
-        'lr': [1e-2, 1e-3, 1e-4],
-        'weight_decay': [1e-4, 1e-5, 1e-6],
+        'hidden_size': [32, 64],  #  64, 128
+        'diag_hidden_size': [32, 64],
+        'diag_embedding_size': [32, 64],
+        'lr': [1e-3, 1e-4],
+        'weight_decay': [1e-4, 1e-5,],
         'batch_size': [512],  # 50
     }
     hyper_paras_names, hyper_paras_v = zip(*paras_grid.items())
@@ -189,7 +190,7 @@ if __name__ == '__main__':
     i_iter = -1
     for hyper_paras in tqdm(hyper_paras_list):
         i += 1
-        hidden_size, diag_hidden_size, lr, weight_decay, batch_size = hyper_paras
+        hidden_size, diag_hidden_size, diag_embedding_size, lr, weight_decay, batch_size = hyper_paras
         print('In hyper-paras space [{}/{}]...'.format(i, len(hyper_paras_list)))
         print(hyper_paras_names)
         print(hyper_paras)
@@ -203,7 +204,7 @@ if __name__ == '__main__':
             hidden_size=hidden_size,  # 100,
             bidirectional=True,
             diag_vocab_size=len(my_dataset.diag_code_vocab),
-            diag_embedding_size=args.diag_emb_size,  # 128
+            diag_embedding_size=diag_embedding_size,  # args.diag_emb_size,  # 128
             # end_index=my_dataset.diag_code_vocab[CodeVocab.END_CODE],
             # pad_index=my_dataset.diag_code_vocab[CodeVocab.PAD_CODE],
         )
@@ -249,6 +250,7 @@ if __name__ == '__main__':
 
             results.append((i_iter, i, epoch, hyper_paras, auc_val, auc_test))
 
+            print('', flush=True)
             print('HP-i:{}, epoch:{}, loss:{}, val-auc:{}, test-auc:{}'.format(
                 i, epoch, epoch_losses, auc_val, auc_test)
             )
