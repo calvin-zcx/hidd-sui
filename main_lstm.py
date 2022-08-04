@@ -172,7 +172,7 @@ if __name__ == '__main__':
         'diag_embedding_size': [32, 64],
         'lr': [1e-3, 1e-4],
         'weight_decay': [1e-4, 1e-5,],
-        'batch_size': [512],  # 50
+        'batch_size': [1024],  # 50
     }
     hyper_paras_names, hyper_paras_v = zip(*paras_grid.items())
     hyper_paras_list = list(itertools.product(*hyper_paras_v))
