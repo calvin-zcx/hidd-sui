@@ -1,4 +1,7 @@
 from collections import Counter
+from tqdm import tqdm
+
+import Vocab
 
 
 class CodeVocab(object):
@@ -22,8 +25,8 @@ class CodeVocab(object):
         # if self.special_codes is not None:
         #     self.add_code_list(self.special_codes)
 
-    def add_code_list(self, code_list, rebuild=True):
-        code_list = [x.split('_')[0] for x in code_list]
+    def add_code_list(self, code_list_original, rebuild=True):
+        code_list = [x.split('_')[0] for x in code_list_original]
         self.code2count.update(code_list)
         for code in code_list:
             if code not in self.code2id:
@@ -33,7 +36,7 @@ class CodeVocab(object):
             self._rebuild_id2code()
 
     def add_patients_visits(self, patients_visits):
-        for patient in patients_visits:
+        for patient in tqdm(patients_visits):
             for visit in patient:
                 self.add_code_list(visit, False)
 
@@ -41,6 +44,17 @@ class CodeVocab(object):
             self._select_most_common_codes()
 
         self._rebuild_id2code()
+
+    def extend_vocab(self, voc: "CodeVocab"):
+        print('Before extend:', self.__len__())
+        self.code2count.update(voc.code2count)
+        for code, id_ in voc.code2id.items():
+            if code not in self.code2id:
+                self.code2id[code] = len(self.code2id)
+
+        self._rebuild_id2code()
+        print('After extend:', self.__len__())
+        return self
 
     def _rebuild_id2code(self):
         self.id2code = {i: t for t, i in self.code2id.items()}

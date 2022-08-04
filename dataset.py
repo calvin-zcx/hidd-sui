@@ -1,7 +1,7 @@
 # import logging
 import numpy as np
 import torch.utils.data
-from vocab import *
+from Vocab import *
 from tqdm import tqdm
 from collections import Counter
 

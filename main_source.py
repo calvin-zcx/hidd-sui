@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import TruncatedSVD
 import torch.nn as nn
 import torch.nn.functional as F
-from utils import *
+from utils_old import *
 import torch.utils.data as data_utils
 from sklearn.cluster import KMeans
 

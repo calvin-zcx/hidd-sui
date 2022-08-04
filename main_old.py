@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import TruncatedSVD
 import torch.nn as nn
 import torch.nn.functional as F
-from utils import save_model, load_model, check_and_mkdir
+from utils_old import save_model, load_model, check_and_mkdir
 
 
 def parse_args():

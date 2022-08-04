@@ -1,13 +1,13 @@
 """
 _*_ coding: utf-8 _*_
 @ Author: Yu Hou
-@ File: supp_LSTM_dataset.py
+@ File: dataset_lstm.py
 @ Time: 5/31/22 3:07 PM
 """
 
 import numpy as np
 import torch.utils.data
-from supp_vocab import *
+from Vocab import *
 from tqdm import tqdm
 import copy
 import pandas as pd
@@ -133,17 +133,21 @@ class LSTM_Dataset(torch.utils.data.Dataset):
         return outcome
 
     def __getitem__(self, index):
+        # return labels
+        outcome = self.outcome[index]
+        Y = copy.deepcopy(outcome)
+        Y[0] = Y[0] + Y[2]
+        labels = Y[:2].argmax()
         diag = self.diagnoses_visits[index]
+
+        if labels == 1:
+            # For positive, leave out last suicide visit
+            diag = diag[:-1]
+
         diag = self._process_visits(diag, self.diag_visit_max_length, self.diag_code_vocab)  # T_dx * D_dx
 
         sex = self.sexes[index]
         age = self.ages[index]
-        outcome = self.outcome[index]
-
-        # return labels
-        Y = copy.deepcopy(outcome)
-        Y[0] = Y[0] + Y[2]
-        labels = Y[:2].argmax()
 
         confounder = (diag, sex, age)
 

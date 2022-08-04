@@ -1,17 +1,23 @@
 from datetime import datetime
 import os
+# import pandas as pd
+# import time
+# import pickle
+# import csv
+# import numpy as np
 import re
+import json
 
 import torch
 import torch.utils.data
-import torch.nn.functional as F
-
-from supp_dataset import *
-from supp_dataset_copy import *
-from supp_LSTM_dataset import *
+from dataset import *
 import pickle
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import csv
+from collections import Counter, defaultdict
 from scipy.special import softmax
 import torch.nn as nn
 from sklearn.metrics import precision_recall_fscore_support, precision_score, recall_score, roc_auc_score, \
@@ -101,7 +107,8 @@ def logits_to_probability(logits, normalized):
             raise ValueError
 
 
-def transfer_data(model, dataloader, cuda=True, normalized=False):
+def transfer_data(model, dataloader, cuda=True, normalized=False,
+                  pretrain_model=None, exclude_1_visit=False):
     with torch.no_grad():
         model.eval()
         loss_list = []
@@ -111,46 +118,101 @@ def transfer_data(model, dataloader, cuda=True, normalized=False):
         X_list = []
         X_embed_list = []
 
-        for X, Y, outcome, uid in dataloader:
+        for X, Y, Y_t2e, Y_more, idx in dataloader:
             if cuda:
-                for i in range(len(X)):
-                    X[i] = X[i].to('cuda')
-                Y = Y.float().to('cuda')
+                X = X.float().to('cuda')
+                Y = Y.long().to('cuda')
+                Y_more = Y_more.long().to('cuda')
 
-            logits, _ = model(X)
+            if pretrain_model:
+                with torch.no_grad():
+                    pretrain_model.eval()
+                    X_embed = pretrain_model.encoder(X)
+            else:
+                X_embed = X
+            if not exclude_1_visit:
+                Y[:, 0] = Y[:, 0] + Y[:, 2]
+            _, labels = Y[:, :2].max(dim=1)
+            Y = labels
+            logits = model(X_embed)
             if isinstance(logits, tuple):
                 logits = logits[0]
-
             # loss = F.cross_entropy(logits, Y)
-            # loss = nn.CrossEntropyLoss()(logits, labels)
-
-            loss = F.binary_cross_entropy_with_logits(logits, Y)
+            loss = nn.CrossEntropyLoss()(logits, labels)
 
             if cuda:
                 logits = logits.to('cpu').detach().data.numpy()
                 Y = Y.to('cpu').detach().data.numpy()
+                X = X.to('cpu').detach().data.numpy()
+                X_embed = X_embed.to('cpu').detach().data.numpy()
                 loss = loss.to('cpu').detach().data.numpy()
             else:
                 logits = logits.detach().data.numpy()
                 Y = Y.detach().data.numpy()
+                X = X.detach().data.numpy()
+                X_embed = X_embed.detach().data.numpy()
                 loss = loss.detach().data.numpy()
 
             logits_list.append(logits)  # [:,1])
             Y_list.append(Y)
+            X_list.append(X)
+            X_embed_list.append(X_embed)
             loss_list.append(loss.item())
-            uid_list.append(uid)
+            uid_list.append(idx)
 
         loss_final = np.mean(loss_list)
         Y_final = np.concatenate(Y_list)
-        # X_final = np.concatenate(X_list)
-        # X_embed_final = np.concatenate(X_embed)
+        X_final = np.concatenate(X_list)
+        X_embed_final = np.concatenate(X_embed)
         logits_final = np.concatenate(logits_list)
         uid_final = np.concatenate(uid_list)
 
         Y_pred_final = logits_to_probability(logits_final, normalized=normalized)
         auc = roc_auc_score(Y_final, Y_pred_final)
 
-        return auc, loss_final, Y_final, Y_pred_final, uid_final
+        return auc, loss_final, Y_final, Y_pred_final, uid_final, X_final, X_embed_final
+
+
+def tsne_plot(x, y, perplexity = 50, dump=False, fname='tsne'):
+    emethod = 'tsne'
+    # x, y, t2e, all_uid = flatten_data(my_dataset, indices)
+    tsne = TSNE(n_components=2, verbose=1, perplexity=perplexity, init='pca')  # , n_iter=300)
+    results = tsne.fit_transform(x)
+    # df = pd.DataFrame(data={'y': y.astype(int),
+    #                         '{}-Dim-1'.format(emethod): results[:, 0],
+    #                         '{}-Dim-2'.format(emethod): results[:, 1]})
+    markers = ['o', 's', 'p', 'x', '^', '+', '*', '<', 'D', 'h', '>']
+    # markers = ['o', 'x']
+    colors = ['#F65453', '#82A2D3', '#FAC200', 'purple']
+
+    # plt.figure(figsize=(16, 10))
+    # fig, ax = plt.subplots(figsize=(12, 8))
+    plt.figure(figsize=(12, 8))
+
+    plt.scatter(results[np.where(y[:, 2] == 1), 0], results[np.where(y[:, 2] == 1), 1], marker='s', c='b',
+                  alpha=0.5, label='One visit')
+    plt.scatter(results[np.where(y[:, 3] == 1), 0], results[np.where(y[:, 3] == 1), 1], marker='+', c='purple',
+                alpha=0.5, label='1st suicide')
+    plt.scatter(results[(y[:,0] == 1), 0], results[(y[:,0] == 1), 1], marker='o', c='g', alpha=0.5, label='Negative')
+    plt.scatter(results[np.where(y[:, 1] == 1), 0], results[np.where(y[:, 1] == 1), 1], s=100, marker='x', c='r',
+                alpha=1, label='Positive')
+    plt.legend(loc='best')
+    # ax = sns.scatterplot(
+    #     x="{}-Dim-1".format(emethod),
+    #     y="{}-Dim-2".format(emethod),
+    #     hue="y",
+    #     # palette=sns.color_palette("hls", 2),
+    #     data=df,
+    #     legend="full",
+    #     alpha=0.5,
+    #     style="y")  # , s=30)
+
+    # fig = ax.get_figure()
+    if dump:
+        plt.savefig('figure/{}-per{}.png'.format(fname, perplexity))
+        plt.savefig('figure/{}-per{}.pdf'.format(fname, perplexity))
+    plt.show()
+    plt.close()
 
 
 def print_records_of_uid(uid, fname=r'pickles/final_pats_1st_neg_dict_before20150930.pkl'):

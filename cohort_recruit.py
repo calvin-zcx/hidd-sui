@@ -1,7 +1,7 @@
 from collections import defaultdict
 from datetime import datetime
 import pickle
-from utils import str_to_datetime
+from utils_old import str_to_datetime
 import pandas as pd
 
 

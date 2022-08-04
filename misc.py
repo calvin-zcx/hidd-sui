@@ -13,7 +13,7 @@ import numpy as np
 import csv
 from collections import Counter, defaultdict
 import pandas as pd
-from utils import check_and_mkdir
+from utils_old import check_and_mkdir
 
 
 def shell_for_ml():

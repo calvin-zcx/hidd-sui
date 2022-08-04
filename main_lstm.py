@@ -1,3 +1,4 @@
+import copy
 import sys
 
 # for linux env.
@@ -6,7 +7,7 @@ import time
 import pickle
 import argparse
 
-from supp_utils import *
+from utils import *
 from torch.utils.data.sampler import SubsetRandomSampler
 import numpy as np
 import torch
@@ -18,6 +19,8 @@ import matplotlib.pyplot as plt
 from model import lstm, ml
 import itertools
 import functools
+from dataset_lstm import LSTM_Dataset
+from Vocab import *
 
 print = functools.partial(print, flush=True)
 
@@ -27,14 +30,15 @@ def parse_args():
     # Input
     parser.add_argument('--dataset', type=str, choices=['apcd', 'hidd', 'khin'], default='hidd')
     parser.add_argument("--random_seed", type=int, default=0)
-
+    parser.add_argument('--feature_space', type=str, choices=['combined', 'local'], default='combined')
+    parser.add_argument('--code_topk', type=int, default=300)
     # parser.add_argument('--run_model', choices=['LSTM', 'MLP'], default='MLP')
-    # parser.add_argument('--med_code_topk', type=int, default=200)
+
     # Deep PSModels
     parser.add_argument('--batch_size', type=int, default=256)  # 768)  # 64)
     parser.add_argument('--learning_rate', type=float, default=1e-3)  # 0.001
     parser.add_argument('--weight_decay', type=float, default=1e-6)  # )0001)
-    parser.add_argument('--epochs', type=int, default=15)  # 30
+    parser.add_argument('--epochs', type=int, default=10)  # 30
     # LSTM
     parser.add_argument('--diag_emb_size', type=int, default=128)
     parser.add_argument('--med_emb_size', type=int, default=128)
@@ -44,7 +48,7 @@ def parse_args():
     # MLP
     # parser.add_argument('--hidden_size', type=str, default='', help=', delimited integers')
     # Output
-    parser.add_argument('--output_dir', type=str, default='output/')
+    parser.add_argument('--output_dir', type=str, default='output/lstm/')
     args = parser.parse_args()
 
     # Modifying args
@@ -57,14 +61,12 @@ def parse_args():
         from datetime import datetime
         rseed = datetime.now()
     args.random_seed = rseed
-    args.save_model_filename = os.path.join(args.output_dir, 'lstm', 'lstm_S{}.model'.format(args.random_seed,
-                                                                                             ))
+    args.save_model_filename = os.path.join(args.output_dir, '{}/lstm_S{}.model'.format(args.dataset,
+                                                                                        args.random_seed))
     check_and_mkdir(args.save_model_filename)
     #
     # args.hidden_size = [int(x.strip()) for x in args.hidden_size.split(',')
     #                     if (x.strip() not in ('', '0'))]
-    if args.med_code_topk < 1:
-        args.med_code_topk = None
 
     return args
 
@@ -96,7 +98,29 @@ if __name__ == '__main__':
         data_1st_neg = pickle.load(f)
         print('len(data_1st_neg):', len(data_1st_neg))
 
-    my_dataset = LSTM_Dataset(data_1st_neg, diag_name=dx_name, diag_code_topk=300)
+    if args.feature_space == 'combined':
+        # Load combined features
+        with open('Pre_train/selected_features_apcd.obj', 'rb') as f:
+            vocab_apcd = pickle.load(f)
+
+        with open('Pre_train/selected_features_hidd.obj', 'rb') as f:
+            vocab_hidd = pickle.load(f)
+
+        with open('Pre_train/selected_features_khin.obj', 'rb') as f:
+            vocab_khin = pickle.load(f)
+
+        vocab_combined = copy.deepcopy(vocab_apcd)
+        vocab_combined.extend_vocab(vocab_hidd)
+        vocab_combined.extend_vocab(vocab_khin)
+
+        print('Using combined feature space')
+        my_dataset = LSTM_Dataset(data_1st_neg, diag_name=dx_name, diag_code_vocab=vocab_combined)
+
+    else:
+        print('Using local feature space, top k:', args.code_topk)
+        my_dataset = LSTM_Dataset(data_1st_neg, diag_name=dx_name, diag_code_topk=args.code_topk)
+
+
     n_feature = my_dataset.DIM_OF_CONFOUNDERS
     feature_name = my_dataset.FEATURE_NAME
     print('n_feature: ', n_feature, ':')
@@ -123,10 +147,10 @@ if __name__ == '__main__':
     val_sampler = SubsetRandomSampler(val_indices)
     test_sampler = SubsetRandomSampler(test_indices)
 
-    train_loader = torch.utils.data.DataLoader(my_dataset, batch_size=256, sampler=train_sampler)
-    val_loader = torch.utils.data.DataLoader(my_dataset, batch_size=256, sampler=val_sampler)
-    test_loader = torch.utils.data.DataLoader(my_dataset, batch_size=256, sampler=test_sampler)
-    data_loader = torch.utils.data.DataLoader(my_dataset, batch_size=256, sampler=SubsetRandomSampler(indices))
+    train_loader = torch.utils.data.DataLoader(my_dataset, batch_size=args.batch_size, sampler=train_sampler)
+    val_loader = torch.utils.data.DataLoader(my_dataset, batch_size=args.batch_size, sampler=val_sampler)
+    test_loader = torch.utils.data.DataLoader(my_dataset, batch_size=args.batch_size, sampler=test_sampler)
+    data_loader = torch.utils.data.DataLoader(my_dataset, batch_size=args.batch_size, sampler=SubsetRandomSampler(indices))
 
     # train_loader_shuffled = torch.utils.data.DataLoader(my_dataset, batch_size=256, sampler=train_sampler)
     #
@@ -142,9 +166,9 @@ if __name__ == '__main__':
 
     paras_grid = {
         'hidden_size': [32, 64, 128],  # 100
-        'lr': [1e-3],
-        'weight_decay': [1e-6],
-        'batch_size': [256],  # 50
+        'lr': [1e-2, 1e-3, 1e-4],
+        'weight_decay': [1e-4, 1e-5, 1e-6],
+        'batch_size': [512],  # 50
     }
     hyper_paras_names, hyper_paras_v = zip(*paras_grid.items())
     hyper_paras_list = list(itertools.product(*hyper_paras_v))
@@ -192,11 +216,12 @@ if __name__ == '__main__':
         for epoch in tqdm(range(args.epochs)):
             i_iter += 1
             epoch_losses_ipw = []
+            uid_list = []
             for confounder, labels, outcome, uid in train_loader_shuffled:
                 model.train()
                 # train IPW
                 optimizer.zero_grad()
-
+                uid_list.extend(uid)
                 if args.cuda:  # confounder = (diag, med, sex, age)
                     for ii in range(len(confounder)):
                         confounder[ii] = confounder[ii].to('cuda')
