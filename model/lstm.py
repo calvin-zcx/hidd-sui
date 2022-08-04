@@ -2,8 +2,11 @@ import torch
 
 
 class LSTMModel(torch.nn.Module):
-    def __init__(self, diag_vocab_size,  diag_embedding_size,
-                  diag_hidden_size,  hidden_size,
+    def __init__(self,
+                 diag_vocab_size,
+                 diag_embedding_size,
+                 diag_hidden_size,
+                 hidden_size,
                  bidirectional=True):  # end_index, pad_index,
         super().__init__()
         # self.pad_index = pad_index
@@ -90,7 +93,6 @@ class LSTMModel(torch.nn.Module):
                               ages.float(),
                               ), dim=1)  # bs * (D1+D2+2)
 
-        # IPW
         hidden = torch.cat((diag_hidden,
                             sexes.float().view(sexes.size(0), 1),
                             ages.float(),

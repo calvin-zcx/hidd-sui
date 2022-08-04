@@ -41,8 +41,8 @@ def parse_args():
     parser.add_argument('--epochs', type=int, default=10)  # 30
     # LSTM
     parser.add_argument('--diag_emb_size', type=int, default=128)
-    parser.add_argument('--med_emb_size', type=int, default=128)
-    parser.add_argument('--med_hidden_size', type=int, default=64)
+    # parser.add_argument('--med_emb_size', type=int, default=128)
+    # parser.add_argument('--med_hidden_size', type=int, default=64)
     parser.add_argument('--diag_hidden_size', type=int, default=64)
     parser.add_argument('--lstm_hidden_size', type=int, default=100)
     # MLP
@@ -72,6 +72,8 @@ def parse_args():
 
 
 if __name__ == '__main__':
+    # python main_lstm.py --dataset hidd --random_seed 0 2>&1 | tee  log/lstm_hidd_r0.txt
+
     start_time = time.time()
     args = parse_args()
     print('args: ', args)
@@ -165,7 +167,8 @@ if __name__ == '__main__':
     print('LSTM-Attention PS PSModels learning:')
 
     paras_grid = {
-        'hidden_size': [32, 64, 128],  # 100
+        'hidden_size': [32,],  #  64, 128
+        'diag_hidden_size': [32, 64, 128],
         'lr': [1e-2, 1e-3, 1e-4],
         'weight_decay': [1e-4, 1e-5, 1e-6],
         'batch_size': [512],  # 50
@@ -186,7 +189,7 @@ if __name__ == '__main__':
     i_iter = -1
     for hyper_paras in tqdm(hyper_paras_list):
         i += 1
-        hidden_size, lr, weight_decay, batch_size = hyper_paras
+        hidden_size, diag_hidden_size, lr, weight_decay, batch_size = hyper_paras
         print('In hyper-paras space [{}/{}]...'.format(i, len(hyper_paras_list)))
         print(hyper_paras_names)
         print(hyper_paras)
@@ -196,7 +199,7 @@ if __name__ == '__main__':
               'train_loader_shuffled.batch_size: ', train_loader_shuffled.batch_size)
 
         model_params = dict(
-            diag_hidden_size=args.diag_hidden_size,  # 64
+            diag_hidden_size=diag_hidden_size,  # 64
             hidden_size=hidden_size,  # 100,
             bidirectional=True,
             diag_vocab_size=len(my_dataset.diag_code_vocab),
@@ -215,7 +218,7 @@ if __name__ == '__main__':
 
         for epoch in tqdm(range(args.epochs)):
             i_iter += 1
-            epoch_losses_ipw = []
+            epoch_losses = []
             uid_list = []
             for confounder, labels, outcome, uid in train_loader_shuffled:
                 model.train()
@@ -228,15 +231,15 @@ if __name__ == '__main__':
                     flag = labels.to('cuda').float()
 
                 treatment_logits, _ = model(confounder)
-                loss_ipw = F.binary_cross_entropy_with_logits(treatment_logits, flag)
+                loss = F.binary_cross_entropy_with_logits(treatment_logits, flag)
 
-                loss_ipw.backward()
+                loss.backward()
                 optimizer.step()
-                epoch_losses_ipw.append(loss_ipw.item())
+                epoch_losses.append(loss.item())
 
             # just finish 1 epoch
             # scheduler.step()
-            epoch_losses_ipw = np.mean(epoch_losses_ipw)
+            epoch_losses_ipw = np.mean(epoch_losses)
 
             auc_val, loss_val, Y_val, Y_pred_val, uid_val = transfer_data(model, val_loader, cuda=args.cuda,
                                                                           normalized=False)
@@ -247,7 +250,7 @@ if __name__ == '__main__':
             results.append((i_iter, i, epoch, hyper_paras, auc_val, auc_test))
 
             print('HP-i:{}, epoch:{}, loss:{}, val-auc:{}, test-auc:{}'.format(
-                i, epoch, epoch_losses_ipw, auc_val, auc_test)
+                i, epoch, epoch_losses, auc_val, auc_test)
             )
             print('Validation set, len:', len(Y_val))
             result_9_val = ml.MLModels._performance_at_specificity_or_threshold(Y_pred_val, Y_val, specificity=0.9)
