@@ -49,7 +49,8 @@ class LSTM_Dataset(torch.utils.data.Dataset):
         print('self.visit_seq_len:', self.visit_seq_len.describe())
         print('Using diag_visit_max_length_quntile:', diag_visit_max_length_quntile)
         assert 0 < diag_visit_max_length_quntile <= 1
-        self.diag_visit_max_length = int(np.quantile(self.visit_seq_len, diag_visit_max_length_quntile))  # max(self.visit_seq_len)
+        self.diag_visit_max_length = int(np.quantile(self.visit_seq_len, diag_visit_max_length_quntile))
+        self.diag_visit_max_length = min(self.diag_visit_max_length, 20)
         self.diag_vocab_length = len(self.diag_code_vocab)
         print('Diagnoses Visit Max Length: %d' % self.diag_visit_max_length)
 

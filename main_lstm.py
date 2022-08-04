@@ -28,7 +28,7 @@ print = functools.partial(print, flush=True)
 def parse_args():
     parser = argparse.ArgumentParser(description='process parameters')
     # Input
-    parser.add_argument('--dataset', type=str, choices=['apcd', 'hidd', 'khin'], default='hidd')
+    parser.add_argument('--dataset', type=str, choices=['apcd', 'hidd', 'khin'], default='khin')
     parser.add_argument("--random_seed", type=int, default=0)
     parser.add_argument('--feature_space', type=str, choices=['combined', 'local'], default='combined')
     parser.add_argument('--code_topk', type=int, default=300)
@@ -239,7 +239,7 @@ if __name__ == '__main__':
 
             # just finish 1 epoch
             # scheduler.step()
-            epoch_losses_ipw = np.mean(epoch_losses)
+            epoch_losses = np.mean(epoch_losses)
 
             auc_val, loss_val, Y_val, Y_pred_val, uid_val = transfer_data(model, val_loader, cuda=args.cuda,
                                                                           normalized=False)
