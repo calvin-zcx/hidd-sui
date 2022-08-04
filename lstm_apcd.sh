@@ -1,0 +1,10 @@
+python main_lstm.py --dataset apcd --random_seed 0 2>&1 | tee  log/lstm_apcd_r0.txt
+python main_lstm.py --dataset apcd --random_seed 1 2>&1 | tee  log/lstm_apcd_r1.txt
+python main_lstm.py --dataset apcd --random_seed 2 2>&1 | tee  log/lstm_apcd_r2.txt
+python main_lstm.py --dataset apcd --random_seed 3 2>&1 | tee  log/lstm_apcd_r3.txt
+python main_lstm.py --dataset apcd --random_seed 4 2>&1 | tee  log/lstm_apcd_r4.txt
+python main_lstm.py --dataset apcd --random_seed 5 2>&1 | tee  log/lstm_apcd_r5.txt
+python main_lstm.py --dataset apcd --random_seed 6 2>&1 | tee  log/lstm_apcd_r6.txt
+python main_lstm.py --dataset apcd --random_seed 7 2>&1 | tee  log/lstm_apcd_r7.txt
+python main_lstm.py --dataset apcd --random_seed 8 2>&1 | tee  log/lstm_apcd_r8.txt
+python main_lstm.py --dataset apcd --random_seed 9 2>&1 | tee  log/lstm_apcd_r9.txt
